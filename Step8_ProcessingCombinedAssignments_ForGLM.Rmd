@@ -1,0 +1,474 @@
+---
+title: "Step8_ProcessingCombinedAssignments_ForGLM"
+output: html_document
+---
+
+Ok now we have our juvenile-to-adult and adult-to-adult assignments by both SNPPIT and COLONY combined in respective files. These assignments have already been filtered for probability/FDR thresholds and parental sex (i.e., making sure all pairs are M/F and informing parent sex where needed/possible). However, before we can use these assignments to generate an input file for Ben's GLM analyses we need to perform one last step - checking each assignment for metdata plausibility (i.e., do the parental dispositions make sense together, could the identified parent realistically been the parent given sampling life stage/year?, etc.) 
+
+So in order to do this, we need to combine the adult and juvenile assignments together, then combine them to metadata and check assignments by eye. 
+
+```{r combine-assign-with-metadata}
+rm(list = ls())
+library(tidyverse)
+library(lubridate)
+load('COLONY2_Results/Adults_SNPPIT_COLONY_filtered_assign.Rdata')
+load('COLONY2_Results/Juvs_SNPPIT_COLONY_filtered_assign.Rdata')
+
+assign_all <- bind_rows(adults_combine, juvs_combine)
+
+
+#combine assignments with metadata
+#read in metadata
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv") %>%
+  unique()
+
+#Now combine metadata by Offspring ID first 
+assign_all_meta <- left_join(assign_all, metadata, by = c("Kid" = "IndividualName"))
+
+#then combine Pa metadata
+assign_all_meta_Pa <- left_join(assign_all_meta, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage.y, Pa_Disposition = Analytical_Disposition.y, Pa_Origin = Analytical_Origin.y, Pa_SampleYear = Date.Year.y, Pa_Date = Date.y, Pa_Location = Location.y, Pa_ForkLength = ForkLength.y, Pa_FinClips = FinClips.y, Pa_Gender = Gender.y, Pa_GenderCorrection = GenderCorrection.y, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3.y) 
+
+#lastly combine Parent2 metadata
+assign_all_meta_Ma <- left_join(assign_all_meta_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  dplyr::rename(., LifeHistoryStage = Analytical_LifeHistoryStage.x, Disposition = Analytical_Disposition.x, Origin = Analytical_Origin.x, SampleYear = Date.Year.x, Date = Date.x, Location = Location.x, ForkLength = ForkLength.x, FinClips = FinClips.x, Gender = Gender.x, GenderCorrection = GenderCorrection.x, GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3.x)
+
+
+#create an inferred age column for the offspring based on the sample year of the parents
+#all assignments were constrained by parents having to be in the same spawn year, so can use either Pa sample year (or Ma if Pa is known)
+assign_all_meta_final <- assign_all_meta_Ma %>%
+  mutate(., Parental_SpawnYear = (ifelse(is.na(Pa_SampleYear), Ma_SampleYear, Pa_SampleYear))) %>%
+  mutate(., Inferred_Offs_Age = SampleYear - Parental_SpawnYear) %>%
+  relocate(., Inferred_Offs_Age, .after = LifeHistoryStage)
+
+#we also want to extract out the month from each date for the offspring. This will help us identify juveniles that have been perhaps wrongly categorized as a smolt or parr
+assign_all_meta_final <- assign_all_meta_final %>%
+  mutate(Date = mdy(Date)) %>%
+  mutate(., sample_month = lubridate::month(Date)) %>%
+  relocate(., sample_month, .after = Date)
+
+
+#Now we will write this to csv, and then modify by hand in the following order:
+# 1. Remove any assignments that seem questionable given metadata 
+##i.e. precocious female spawners, age-2 adults whose fork length is too large, age-3 or age-4 juveniles, age-0 juveniles, non-matching parent dispositions
+# 2. any assignments involving parents that were sampled at locations outside of LKG hatchery, LKG weir or LKG river (i.e., hatchery from Imnaha, Catherine or Lostine)
+# 3. Added a "OffspringOrigin_ParentDisposition column to help identify pairings that don't make sense
+# 4. Add a Pa_Final_Sex and Ma_Final_Sex column. I checked the sex of all individuals identified as parents prior to this so anything listed as a Pa is a Male, and anything listed as a Ma is a female. Save this information in "Individual_Sex_Designations_byPBT.csv" 
+# 4. Change Colony generated IDs in Pa or Ma to "0"
+# 5. Fix Offspring collection. I used a different convention for COLONY and snppit so make all the same
+# 6. Updated the metadata associated with the individuals in the Individ_Need_Progeny_Updates_Sept2021.xlsx file for sending to Hagerman Tech
+
+write_csv(assign_all_meta_final, "Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Draft1.csv")
+
+```
+
+Ok after reviewing by the steps outlined above (steps 1-5) now have Draft 2. Also note that any individuals that were dropped as not relevant to the question at hand are in LKG_COLONY_SNPPIT_DroppedAssignments_BetweenDraft1and2.xlsx. We next want to create a final_sex column for the offspring. Additionally, will look through duplicate list to find those duplicate pairings involving individuals sampled as carcasses to make sure that individuals with just "carcass" or "carcass below weir" dispositions still be included in our analyses if they have a duplicate sample that indicates they were also sampled above the weir at some point. 
+
+```{r cleaned-assignments-metadata-update}
+rm(list = ls())
+library(tidyverse)
+#read in the modified and cleaned input
+assign_clean <- read_csv("Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Draft2.csv", col_types = cols(.default = "c"))
+
+#Create final sex column for offspring. First compare against list of the individuals found as parents and see if they match with any of those. Otherwise use genetic sex and then gender 
+#read in individual sex by PBT list
+individ_sex_byPBT <- read_csv("Templates_for_RRS_script/Individ_Sex_Designations_byPBT.csv") %>%
+  select(., Individual_ID, Sex_By_PBT)
+
+#join to assign_clean 
+assign_clean_1 <- left_join(assign_clean, individ_sex_byPBT, by = c("Kid" = "Individual_ID")) %>%
+  relocate(., Sex_By_PBT, .after = GeneticSex_OtsSEXY3)
+
+#now create Final_Sex column that uses the PBT 
+assign_clean_2 <- assign_clean_1 %>%
+  mutate(., Final_Sex_1 = ifelse(is.na(Sex_By_PBT), GeneticSex_OtsSEXY3, Sex_By_PBT)) %>%
+  mutate(., Final_Sex = ifelse(Final_Sex_1 == "?", Gender, Final_Sex_1)) %>%
+  select(., -Final_Sex_1, -Sex_By_PBT) %>%
+  relocate(., Final_Sex, .after = GeneticSex_OtsSEXY3) #note any of those who were unknown by PBT, genetic and gender will have "U" in their Final_Sex column
+
+
+#Next there are some individuals assigned as parents that have "Carcass" or "Carcass.Below.Weir" dispositions. These may not be of interest to our study UNLESS they were ALSO sampled above the weir
+#We can track this down by looking at our duplicate list
+#read in dup list  and then we need to combine to metadata to review and find individuals that may have some issue of being present above the weir
+dup_list <- read_csv("Rubias_DuplicateAnalysis/LKG_match_indiv_94SNP_panel_modified.csv") %>% #note this was originally performed with a duplicate list from 94loci; will need to change to the 93 list is starting from scratch
+  separate(Sample1, c("Sample1_ID", "Sample1_Collection"), sep="[.]") %>%
+  separate(Sample2, c("Sample2_ID", "Sample2_Collection"), sep="[.]")
+
+#then combine to metadata 
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv") %>%
+  unique()
+
+#by sample1 first and then by sample2
+dup_list_1 <- left_join(dup_list, metadata, by = c("Sample1_ID" = "IndividualName")) %>%
+  dplyr::rename(., Sample1_LifeHistoryStage = Analytical_LifeHistoryStage, Sample1_Disposition = Analytical_Disposition, Sample1_Origin = Analytical_Origin, Sample1_SampleYear = Date.Year, Sample1_Date = Date, Sample1_Location = Location, Sample1_ForkLength = ForkLength, Sample1_FinClips = FinClips, Sample1_Gender = Gender, Sample1_GenderCorrection = GenderCorrection, Sample1_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+dup_list_2 <- left_join(dup_list_1, metadata, by = c("Sample2_ID" = "IndividualName")) %>%
+  dplyr::rename(., Sample2_LifeHistoryStage = Analytical_LifeHistoryStage, Sample2_Disposition = Analytical_Disposition, Sample2_Origin = Analytical_Origin, Sample2_SampleYear = Date.Year, Sample2_Date = Date, Sample2_Location = Location, Sample2_ForkLength = ForkLength, Sample2_FinClips = FinClips, Sample2_Gender = Gender, Sample2_GenderCorrection = GenderCorrection, Sample2_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#write to csv. Will then look for just those pairs involving carcasses to identify those that may have been present above the weir despite being labeled as "Carcass" or "Carcass.Below.Weir"
+write_csv(dup_list_2, "Rubias_DuplicateAnalysis/LKG_94SNP_DuplicateList_withMetaData.csv")
+
+#from this file created LKG_Duplicate_Pairs_with_Carcasses.csv
+#read in carcass dup list, and only want to consider those that have some indication of having been above the weir at some point
+dup_carcasses <- read_csv("Rubias_DuplicateAnalysis/LKG_Duplicate_Pairs_with_Carcasses.csv") %>%
+  filter(., Notes == "Present above weir")
+
+#seperate into males and females and parse down dataframes
+#also create new column that reflects that it was a carcass that at one point was above the weir
+#then can just select each sample ID and new disposition column
+dup_carcass_M <- filter(dup_carcasses, Sample1_GeneticSex_OtsSEXY3 == "M") %>%
+  select(., Sample1_ID, Sample2_ID, Sample1_Disposition, Sample2_Disposition) %>%
+  mutate(., Disposition = "Carcass.And.PassedUpstream") %>%
+  select(., Sample1_ID, Sample2_ID, Disposition)
+dup_carcass_F <- filter(dup_carcasses, Sample1_GeneticSex_OtsSEXY3 == "F") %>%
+  select(., Sample1_ID, Sample2_ID, Sample1_Disposition, Sample2_Disposition) %>%
+  mutate(., Disposition = "Carcass.And.PassedUpstream") %>%
+  select(., Sample1_ID, Sample2_ID, Disposition)
+
+#i generally took whatever ID was in the Sample1 column to represent that duplicate in the parentage analysis, but just to be safe going to break them both out for combining with the assign_clean dataframe
+dup_carcass_M_1 <- select(dup_carcass_M, Sample1_ID, Disposition) %>%
+  rename(., Sample = Sample1_ID)
+dup_carcass_M_2 <- select(dup_carcass_M, Sample2_ID, Disposition) %>%
+  rename(., Sample = Sample2_ID)
+dup_carcass_F_1 <- select(dup_carcass_F, Sample1_ID, Disposition) %>%
+  rename(., Sample = Sample1_ID)
+dup_carcass_F_2 <- select(dup_carcass_F, Sample2_ID, Disposition) %>%
+  rename(., Sample = Sample2_ID)
+#and combine into one by sex
+dup_carcass_M_bind <- bind_rows(dup_carcass_M_1, dup_carcass_M_2) #NOTE: these have been added to the Individ_Need_Progeny_Updates_Sept2021.xlsx file
+dup_carcass_F_bind <- bind_rows(dup_carcass_F_1, dup_carcass_F_2) #NOTE: these have been added to the Individ_Need_Progeny_Updates_Sept2021.xlsx file
+
+
+#now we can combine these to the assignment df as needed to make sure we have updated dispositions for any fish marked as carcass/carcass.below.weir, and which have another record above the weir
+combine_assign_M <- left_join(assign_clean_2, dup_carcass_M_bind, by = c("Pa" = "Sample")) %>%
+  mutate(., Pa_Disposition_final = ifelse(is.na(Disposition.y), Pa_Disposition, Disposition.y)) %>%
+  relocate(., Pa_Disposition_final, .after = Pa_Disposition) %>%
+  select(., -Pa_Disposition, -Disposition.y) %>%
+  rename(., Disposition = Disposition.x, Pa_Disposition = Pa_Disposition_final)
+
+combine_assign_F <- left_join(combine_assign_M, dup_carcass_F_bind, by = c("Ma" = "Sample")) %>%
+  mutate(., Ma_Disposition_final = ifelse(is.na(Disposition.y), Ma_Disposition, Disposition.y)) %>%
+  relocate(., Ma_Disposition_final, .after = Ma_Disposition) %>%
+  select(., -Ma_Disposition, -Disposition.y) %>%
+  rename(., Disposition = Disposition.x, Ma_Disposition = Ma_Disposition_final)
+
+#some of these individuals might be listed as kids too, so want to make sure we update their dispositions
+dup_carcass_for_kids <- bind_rows(dup_carcass_M_bind, dup_carcass_F_bind)
+
+combine_assign_kids <- left_join(combine_assign_F, dup_carcass_for_kids, by = c("Kid" = "Sample")) %>%
+  mutate(., Kid_Disposition_final = ifelse(is.na(Disposition.y), Disposition.x, Disposition.y)) %>%
+  relocate(., Kid_Disposition_final, .after = Disposition.x) %>%
+  select(., -Disposition.x, -Disposition.y) %>%
+  rename(., Disposition = Kid_Disposition_final)
+
+#now we need to update the OffspringOrigin_ParentDisposition column based on these new parent dispositions
+assign_clean_final <- combine_assign_kids %>%
+  unite(., OffspringOrigin_ParentDisposition_1, Origin, Pa_Disposition, Ma_Disposition, sep = "_", remove = FALSE) %>%
+  relocate(., OffspringOrigin_ParentDisposition_1, .after = Origin) %>%
+  select(., -OffspringOrigin_ParentDisposition) %>%
+  rename(., OffspringOrigin_ParentDisposition = OffspringOrigin_ParentDisposition_1)
+
+#ok now can write this to a csv and going to create ParentageOrigin column
+##ParentageOrigin column reflects kid origin according to parent disposition
+#if assigned two parents then assigned origin according to parental dispositions, regardless of field origin or fin clipping. This helped inform many individuals whose origin was Unk
+#if assigned only one parent, but this parent's disposition aligned with the offspring's field ID, then called parentage origin = field origin
+
+###For example, if identifed parent was a Carcass, and the progeny was identified as NOR, then kept as NOR. If the Field Origin did not equal Parentage Origin, but the fin clip aligned with the parentage assignment, then Parentage Origin was updated to reflect parental assignment. For example, if individual marked as HOR but assigned a carcass parent, AND had AI as fin clip, then ParentageOrigin = NOR. However, if the parentage origin did not align with the field origin, AND the fin clip supports the field origin or was Unknown, then the parentage origin was "Unk"
+
+#If an individual was assigned only one parent, and it's field ID was unknown, then used parent assignment to inform origin
+
+#after making these edits, file will be saved as LKG_COLONY_SNPPIT_Filtered_Draft4.csv
+#created a list of individuals whose field origin is different from their parentage origin and included them in a tab in the Individ_Need_Progeny_Updated_Sept2021.xlsx file
+write_csv(assign_clean_final, "Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Draft3.csv")
+
+```
+
+Ok now working from Draft4, which has the ParentageOrigin column. We are going to tally the number of offspring attributed to each individual listed in the Kid column. Also combine this filtered assignment file to the total metadata file to identify those individuals that were not assigned parents by our probability/FDR thresholds, or which were not considered as offspring. 
+
+
+``` {r final-assignments-to-consider}
+rm(list = ls())
+library(tidyverse)
+library(lubridate)
+
+#read in Draft 4
+assign_clean <- read_csv("Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Draft4.csv", col_types = cols(.default = "c"))
+
+#now we want to count the number of offspring assigned to any given individual after cleaning up the assignments
+Pa <- assign_clean %>%
+  dplyr::select(., Pa) %>%
+  group_by(., Pa) %>%
+  tally() %>%
+  dplyr::rename(., No.Offspring = n) %>%
+  filter(., Pa != "0")
+
+Ma <- assign_clean %>%
+  dplyr::select(., Ma) %>%
+  group_by(., Ma) %>%
+  tally() %>%
+  dplyr::rename(., No.Offspring = n) %>%
+  filter(., Ma != "0")
+
+#ASIDE: want to write to csv for easy access later on
+Pa_1 <- Pa %>%
+  dplyr::rename(., CRITFC_ID = Pa)
+
+Ma_1 <- Ma  %>%
+  dplyr::rename(., CRITFC_ID = Ma)
+
+No.Offs_by_ID <- bind_rows(Pa_1, Ma_1)
+write_csv(No.Offs_by_ID, "Summary Files/No.Offs.By.CRITFC_ID.csv")
+
+
+#ok now can combine these tallies back to the cleaned assignment df so that we have a "offspring" column that shows how many offspring were atrributed to the individual listed in the "Kid" column
+assign_clean_Pa <- left_join(assign_clean, Pa, by = c("Kid" = "Pa")) %>%
+  dplyr::rename(No.Offspring_CombiningToPa = No.Offspring)
+
+assign_clean_Ma <- left_join(assign_clean_Pa, Ma, by = c("Kid" = "Ma")) %>%
+  dplyr::rename(No.Offspring_CombiningToMa = No.Offspring)
+
+#combined as done above any case there were any individuals that had unknown sex and were identified as both a mother and father
+#this would allow me to capture those assignments if applicable. I checked for this in early steps but doesn't hurt to double check. 
+
+#no individuals, however, were assigned offspring as both a mother and father
+#so can combine the two offspring columns
+assign_clean_final <- assign_clean_Ma %>%
+  replace_na(list(No.Offspring_CombiningToPa = 0, No.Offspring_CombiningToMa = 0)) %>%
+  mutate(., No.Offspring = No.Offspring_CombiningToPa + No.Offspring_CombiningToMa) %>%
+  dplyr::select(., -No.Offspring_CombiningToPa, -No.Offspring_CombiningToMa) %>%
+  relocate(., No.Offspring, .after = Kid) %>%
+  relocate(., OffspringOrigin_ParentDisposition, .after = last_col()) %>%
+  dplyr::rename(., CRITFC_ID = Kid)
+
+#now that we have the no.offspring column added in and everything formatted correctly the last thing to do is add in all those individuals who were part of the analysis but which did not assign to parents at all, assigned at Prob <0.90/FDR > 0.01, or which were only ever used as potential parents
+
+#so again read in the metadata file used to create the COLONY run files, which has all possible LKG individuals
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv") %>%
+  unique()
+
+#now remember we have that list of individuals whose disposition should be updated based on what we found out about BY2008 and using duplicates
+#need to combine to metadata so that this reflects the most up-to-date understanding of an individuals disposition
+library(readxl)
+dis_update <- read_excel("Templates_for_RRS_script/Individ_Need_Progeny_Updates_Sept2021.xlsx", sheet = "Disposition Updates")
+
+#combine
+meta_update <- left_join(metadata, dis_update, by = c("IndividualName" = "Individual_ID")) %>%
+  mutate(., final_dis = ifelse(is.na(Disposition), Analytical_Disposition, Disposition)) %>%
+  select(., -Analytical_Disposition, -Disposition) %>%
+  rename(., Analytical_Disposition = final_dis) %>%
+  relocate(., Analytical_Disposition, .after = Analytical_LifeHistoryStage)
+
+#Now combine to No.Offs.Assigned df because even though these individuals may not have been assigned parent(s) at our probability thresholds they might be the parent of other individuals and its easiest to carry that information now
+metadata_combine <- left_join(meta_update, No.Offs_by_ID, by = c("IndividualName" = "CRITFC_ID"))
+
+#now anti_join to the assign_clean_final df to get list of individuals that are not in the assignment file
+#and create a final sex column and sample month column
+Individ_not_assigned <- anti_join(metadata_combine, assign_clean_final, by = c("IndividualName" = "CRITFC_ID")) %>%
+  mutate(., final_sex = ifelse(GeneticSex_OtsSEXY3 == "?", Gender, GeneticSex_OtsSEXY3)) %>%
+  mutate(Date = mdy(Date)) %>%
+  mutate(., sample_month = lubridate::month(Date)) %>%
+  relocate(., sample_month, .after = Date)
+
+#now write both to csv and modify format of the Individ_not_assigned df so that it follows assign_clean_final
+#fill parents and offspring column in the individ_not_assigned_parents df as follows: 
+##Adults from 2008 - 2011 have "NA" in Pa & Ma column, because never run as offspring. But change "NA" to "0" in Offspring column since they were run as potential parents but no offspring were assigned to them
+##Adults from 2012-2020 have "0" in Pa and Ma column since they were all run as offspring but none were assigned at thresholds. Adults from 2012-2019 change "NA" in offspring column to "0" since these were all run as potential parents. For Adults from 2020, Offspring column should be "NA" since never inlcuded as potential parents
+
+##For juveniles from 2008, run as potential parents so offspring should "0" but never run as offspring so Pa/Ma should be "NA"
+##For Juveniles 2009-2017, run as potential parents and offspring, so change "NA" to "0" in Offspring column, and "0" in Pa and Ma column
+##Juveniles from 2018-2020 run as offspring but not potential parents, so "NA" in Offspring column and "0" in Pa/Ma
+#make sure U = ? in final_sex columns for both "not assigned" and "draft 5" file 
+#remove any individuals from non-LKG stock (i.e., Imnaha, Catherine Creek, Clearwater, Grande Ronde, Lostine LKG hatchery) and saved in Individ_Sampled_at_NonLKG_facilities.csv
+# then saved as LKG_COLONY_SNPPIT_Filtered_Input_complete.csv
+
+write_csv(assign_clean_final, "Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Draft5.csv")
+write_csv(Individ_not_assigned, "Templates_for_RRS_script/LKG_COLONY_SNPPIT_individ_not_assigned_parents.csv")
+
+```
+
+Lastly, we take our finalized input and recalculate the number of offspring for each individual and then create summary files. 
+
+``` {r assign-success}
+rm(list = ls())
+library(tidyverse)
+
+#read in final input file
+LKG_assign_final <- read_csv("Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Input_complete.csv", col_types = cols(.default = "c"))
+
+#update the No.Offspring column with this final input since I removed any individuals that were sampled at the Imnaha, Clearwater, Lostine, Catherine Creek weirs - some were assigned to LKG Hatchery/Weir fish but often only one parent. Seem like questionable assignmnets so pulled from the final input. May be of interest to hatchery managers if want to know about straying...
+#now we want to count the number of offspring assigned to any given individual after cleaning up the assignments
+Pa <- LKG_assign_final %>%
+  dplyr::select(., Pa) %>%
+  group_by(., Pa) %>%
+  tally() %>%
+  dplyr::rename(., No.Offspring_update = n) %>%
+  filter(., Pa != "0")
+
+Ma <- LKG_assign_final %>%
+  dplyr::select(., Ma) %>%
+  group_by(., Ma) %>%
+  tally() %>%
+  dplyr::rename(., No.Offspring_update = n) %>%
+  filter(., Ma != "0")
+
+
+#ok now can combine these tallies back to the cleaned assignment df so that we have a "offspring" column that shows how many offspring were atrributed to the individual listed in the "Kid" column
+assign_clean_Pa <- left_join(LKG_assign_final, Pa, by = c("CRITFC_ID" = "Pa")) %>%
+  dplyr::rename(No.Offspring_CombiningToPa = No.Offspring_update)
+
+assign_clean_Ma <- left_join(assign_clean_Pa, Ma, by = c("CRITFC_ID" = "Ma")) %>%
+  dplyr::rename(No.Offspring_CombiningToMa = No.Offspring_update) %>%
+  relocate(., No.Offspring_CombiningToMa, .after = No.Offspring_CombiningToPa)
+
+#combined as done above any case there were any individuals that had unknown sex and were identified as both a mother and father
+#this would allow me to capture those assignments if applicable. I checked for this in early steps but doesn't hurt to double check. 
+
+#no individuals, however, were assigned offspring as both a mother and father
+#so can combine the two offspring columns
+LKG_assign_final_1 <- assign_clean_Ma %>%
+  replace_na(list(No.Offspring_CombiningToPa = 0, No.Offspring_CombiningToMa = 0)) %>%
+  mutate(., No.Offspring_update = No.Offspring_CombiningToPa + No.Offspring_CombiningToMa) %>%
+  dplyr::select(., -No.Offspring_CombiningToPa, -No.Offspring_CombiningToMa) %>%
+  relocate(., No.Offspring_update, .after = CRITFC_ID) 
+
+LKG_assign_final_check <- LKG_assign_final_1 %>%
+  mutate_at(., c("No.Offspring", "No.Offspring_update"), as.numeric) %>%
+  mutate(., diff = No.Offspring - No.Offspring_update) %>%
+  relocate(., diff, .after = No.Offspring_update)
+
+#those that have a different count are fish that produced fish that returned to LKG hatchery/weir AS WELL AS other Lookingglass Hatchery facilites (catherine creek, imnaha, lostine, etc.). So some of their offspring strayed to other systems
+#want to pull out IDs from this list since might be of interest for understanding straying
+individ_produce_strays <- LKG_assign_final_check %>%
+  filter(., diff > 0) %>%
+  select(., CRITFC_ID, Disposition, Date, SampleYear, Location, ForkLength, FinClips, Gender, GeneticSex_OtsSEXY3, Final_Sex)
+
+write_csv(individ_produce_strays, "Templates_for_RRS_script/Individ_Producing_Fish_Sampled_at_non_LKG_HatcheryWeir.csv")
+
+#ok now back to the LKG_assign_final_1
+#want to just use the No.OFfspring_update column 
+LKG_assign_final_2 <- LKG_assign_final_1 %>%
+  select(., -No.Offspring) %>%
+  rename(., No.Offspring = No.Offspring_update)
+
+#and lastly, we want to remove the duplicate and failed individuals from this data frame since they were never run through the parentage analysis anyway
+#read in those we dropped
+dups <- read_csv("Rubias_DuplicateAnalysis/LKG_dup_indiv_to_remove.csv")
+
+#find these in the assignment file 
+dups_assign_check <- left_join(dups, LKG_assign_final_2, by = c("Individual" = "CRITFC_ID"))
+#wanted to make sure none have offspring attributed to them, which none do so we should be good to remove these IDs from the assign data frame
+#but there are some individuals that had no match in the LKG_assign_final_2 df and these are individuals that had already been removed because they were from one of the other Upper Grande Ronde stock programs
+#just want to generate some summary information for notes
+dups_summary <- dups_assign_check %>%
+  filter(., No.Offspring >= 0) %>%
+  group_by(., Disposition, Origin) %>%
+  count()
+
+#filter out the dup IDs from the final GLM input
+#majority were broodstock so would have been dropped anyway
+LKG_assign_final_3 <- anti_join(LKG_assign_final_2, dups, by = c("CRITFC_ID" = "Individual"))
+
+#now remove failures
+failures <- read_delim("IDFGEN_outputs/failed_indiv_94Loci_PreDup.txt", delim = "\t") #same note as above for 94 snp panel
+#check 
+failures_check <- left_join(failures, LKG_assign_final_3, by = c("Individual" = "CRITFC_ID"))
+#all have zero progeny; those with no match in the LKG_assign_final_3 were from other Upper Grande Ronde stock programs
+failures_summary <- failures_check %>%
+  filter(., No.Offspring >= 0) %>%
+  group_by(., Disposition, Origin) %>%
+  count()
+
+failures_summary_year <- failures_check %>%
+  filter(., No.Offspring >= 0) %>%
+  group_by(., SampleYear, Disposition) %>%
+  count()
+
+#remove these individuals 
+LKG_assign_final_4 <- anti_join(LKG_assign_final_3, failures, by = c("CRITFC_ID" = "Individual"))
+
+
+write_csv(LKG_assign_final_4, "Templates_for_RRS_script/LKG_COLONY_SNPPIT_Filtered_Input_for_GLM_script_noCrossType.csv")
+
+#From this file, I then went through and created a column for parental cross type (i.e., HxH, HxN, NxN and so on) and I also created a column to reflect parental spawn location. 
+#This new file is called GLM_Lookingglass_ParentCrossType_Input.csv
+
+#ASIDE: want to write to csv number of progeny per father/mother for easy access later on
+Pa_1 <- LKG_assign_final_4 %>%
+  dplyr::select(., Pa) %>%
+  group_by(., Pa) %>%
+  tally() %>%
+  dplyr::rename(., No.Offspring = n) %>%
+  filter(., Pa != "0") %>%
+  dplyr::rename(., CRITFC_ID = Pa)
+
+Ma_1 <- LKG_assign_final_4 %>%
+  dplyr::select(., Ma) %>%
+  group_by(., Ma) %>%
+  tally() %>%
+  dplyr::rename(., No.Offspring = n) %>%
+  filter(., Ma != "0") %>%
+  dplyr::rename(., CRITFC_ID = Ma)
+
+No.Offs_by_ID <- bind_rows(Pa_1, Ma_1)
+write_csv(No.Offs_by_ID, "Summary Files/No.Offs.By.CRITFC_ID.csv")
+
+#And finally, can calculate assignment success by lifeStage/CollectionYear/SpawnLocation combo
+LKG_assign_final_5 <- LKG_assign_final_4 %>%
+  dplyr::select(., FDR, Probability, CRITFC_ID, No.Offspring, Pa, Ma, LifeHistoryStage, Disposition, Origin, ParentageOrigin, SampleYear, Pa_Disposition, Ma_Disposition)
+
+#find unique dispositions
+dispositions <- distinct(LKG_assign_final, Disposition)
+
+#add column that reflects spawning location for each individual
+
+LKG_assign_counts <- mutate(LKG_assign_final_5, SpawnLocation = ifelse(Disposition == 'Passed.Upstream', 'Natural Spawning',
+                                                               ifelse(Disposition == 'Broodstock', 'Hatchery Spawning',
+                                                                      ifelse(Disposition == 'Carcass', 'Natural Spawning', 
+                                                                             ifelse(Disposition == 'Carcass.Below.Weir', 'Natural Spawning', 
+                                                                                    ifelse(Disposition == 'Carcass.Above.Weir', 'Natural Spawning', 
+                                                                                           ifelse(Disposition == 'Juvenile', 'Juvenile', 
+                                                                                                  ifelse(Disposition == 'Juvenile.precocial', 'Juvenile', 
+                                                                                                         ifelse(Disposition == 'Broodstock.PassedUpstream', 'Hatchery and Natural Spawning',
+                                                                                                                ifelse(Disposition == 'Broodstock.Outplant', 'Hatchery and Natural Spawning', 
+                                                                                                                ifelse(Disposition == 'Carcass.And.PassedUpstream', 'Natural Spawning', NA)))))))))))
+
+LKG_assign_counts <- LKG_assign_counts %>%
+  relocate(., SpawnLocation, .after = Ma)
+
+LKG_assign_counts_all <- LKG_assign_counts %>%
+  group_by(., LifeHistoryStage, SampleYear, SpawnLocation) %>%
+  tally()
+
+#now count how many within these categories were assigned at least one parent
+LKG_assign_counts_par <- LKG_assign_counts %>%
+  filter(., Pa != 0 | Ma != 0)
+
+LKG_assign_par_counts <- LKG_assign_counts_par %>%
+  group_by(., LifeHistoryStage, SampleYear, SpawnLocation) %>%
+  tally() %>%
+  dplyr::rename(., assigned = n)
+
+#join to the total counts
+assign_success <- left_join(LKG_assign_counts_all, LKG_assign_par_counts) %>%
+  mutate(., Proportion_assigned = assigned/n)
+
+write_csv(assign_success, "Summary Files/AssignSuccess_byLifeStage_SpawnLocation_Filtered.csv")
+
+#want to do the same by origin
+LKG_assign_byorigin_counts_all <- LKG_assign_counts %>%
+  group_by(., LifeHistoryStage, SampleYear, Origin) %>%
+  tally()
+
+LKG_assign_par_byorigin_counts <- LKG_assign_counts_par %>%
+  group_by(., LifeHistoryStage, SampleYear, Origin) %>%
+  tally() %>%
+  dplyr::rename(., assigned = n)
+
+assign_byorigin_success <- left_join(LKG_assign_byorigin_counts_all, LKG_assign_par_byorigin_counts) %>%
+  mutate(., Proportion_assigned = assigned/n)
+
+write_csv(assign_byorigin_success, "Summary Files/AssignSuccess_byLifeStage_origin_Filtered.csv")
+
+```
+

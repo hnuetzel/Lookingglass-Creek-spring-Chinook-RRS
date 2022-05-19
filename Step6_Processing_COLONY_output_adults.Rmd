@@ -1,0 +1,358 @@
+---
+title: "Processing Adult-to-Adult COLONY assignments"
+output: html_document
+---
+
+COLONY2 will need to be run seperately, either through the Windows-GUI or DOS mode. Also, as you'll see in the COLONY2 Run files folder, I had to create simplifed Sample ID codes for each run file as COLONY can only accomodate so many characters, and I would be unable to distinguish individuals if I used the full Sample ID as exported from Progeny. Recommend using a server with multiple threads to expedite analysis. Once I had the result (Best Cluster) files for each collection, I then saved as a .csv, read into R and filtered as follows. 
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+```
+
+
+```{r}
+
+#read in COLONY results
+#Adults 2012
+adults2012 <- read_csv("COLONY2_Results/LKG_2012Adults_Aug2021/LKG_2012Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2012_codes <- read_csv("COLONY2_Run_Files/Adults2012/LKG_2012Adults_IDcodes.csv")
+
+#join to codes
+adults2012_convert <- left_join(adults2012, adults2012_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2012_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2012_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2012")
+```
+
+
+```{r}
+#Adults 2013
+adults2013 <- read_csv("COLONY2_Results/LKG_2013Adults_Aug2021/LKG_2013Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2013_codes <- read_csv("COLONY2_Run_Files/Adults2013/LKG_2013Adults_IDcodes.csv")
+
+#join to codes
+adults2013_convert <- left_join(adults2013, adults2013_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2013_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2013_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2013")
+
+```
+
+
+```{r}
+#Adults 2014
+adults2014 <- read_csv("COLONY2_Results/LKG_2014Adults_Aug2021/LKG_2014Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2014_codes <- read_csv("COLONY2_Run_Files/Adults2014/LKG_2014Adults_IDcodes.csv")
+
+#join to codes
+adults2014_convert <- left_join(adults2014, adults2014_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2014_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2014_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2014")
+
+```
+
+
+```{r}
+#Adults 2015
+adults2015 <- read_csv("COLONY2_Results/LKG_2015Adults_Aug2021/LKG_2015Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2015_codes <- read_csv("COLONY2_Run_Files/Adults2015/LKG_2015Adults_IDcodes.csv")
+
+#join to codes
+adults2015_convert <- left_join(adults2015, adults2015_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2015_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2015_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2015")
+```
+
+
+
+```{r}
+#Adults 2016
+adults2016 <- read_csv("COLONY2_Results/LKG_2016Adults_Aug2021/LKG_2016Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2016_codes <- read_csv("COLONY2_Run_Files/Adults2016/LKG_2016Adults_IDcodes.csv")
+
+#join to codes
+adults2016_convert <- left_join(adults2016, adults2016_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2016_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2016_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2016")
+
+```
+
+
+
+```{r}
+#Adults 2017
+adults2017 <- read_csv("COLONY2_Results/LKG_2017Adults_Aug2021/LKG_2017Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2017_codes <- read_csv("COLONY2_Run_Files/Adults2017/LKG_2017Adults_IDcodes.csv")
+
+#join to codes
+adults2017_convert <- left_join(adults2017, adults2017_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2017_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2017_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2017")
+```
+
+
+
+```{r}
+#Adults 2018
+adults2018 <- read_csv("COLONY2_Results/LKG_2018Adults_Aug2021/LKG_2018Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2018_codes <- read_csv("COLONY2_Run_Files/Adults2018/LKG_2018Adults_IDcodes.csv")
+
+#join to codes
+adults2018_convert <- left_join(adults2018, adults2018_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2018_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2018_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2018")
+
+```
+
+
+```{r}
+#Adults 2019
+adults2019 <- read_csv("COLONY2_Results/LKG_2019Adults_Aug2021/LKG_2019Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2019_codes <- read_csv("COLONY2_Run_Files/Adults2019/LKG_2019Adults_IDcodes.csv")
+
+#join to codes
+adults2019_convert <- left_join(adults2019, adults2019_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2019_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2019_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2019")
+
+```
+
+
+```{r}
+#Adults 2020
+adults2020 <- read_csv("COLONY2_Results/LKG_2020Adults_Aug2021/LKG_2020Adults_Aug2021_BestCluster.csv")
+#codes to CRITFC_ID
+adults2020_codes <- read_csv("COLONY2_Run_Files/Adults2020/LKG_2020Adults_IDcodes.csv")
+
+#join to codes
+adults2020_convert <- left_join(adults2020, adults2020_codes, by = c("OffspringID" = "COLONY_ID")) %>%
+  dplyr::select(., -OffspringID) %>%
+  dplyr::rename(., OffspringID = Progeny_ID) %>%
+  left_join(., adults2020_codes, by = c("FatherID" = "COLONY_ID")) %>%
+  mutate(., Parent1 = ifelse(is.na(Progeny_ID), FatherID, Progeny_ID)) %>%
+  dplyr::select(., -FatherID, -Progeny_ID) %>%
+  left_join(., adults2020_codes, by = c("MotherID" = "COLONY_ID")) %>%
+  mutate(., Parent2 = ifelse(is.na(Progeny_ID), MotherID, Progeny_ID)) %>%
+  dplyr::select(., -MotherID, - Progeny_ID) %>%
+  mutate(., OffspringSampleYear = "Adult_2020")
+
+```
+
+
+```{r}
+#combine all together
+adults_all <- bind_rows(adults2012_convert, adults2013_convert, adults2014_convert, adults2015_convert, adults2016_convert, adults2017_convert, adults2018_convert, adults2019_convert, adults2020_convert) %>%
+  arrange(., Probability)
+
+#want to do a quick plot of probabilities to see if there are obvious breakpoints
+#create probability distribution plot
+p <- ggplot(adults_all, aes(sample = Probability))
+p + stat_qq() + scale_y_continuous(breaks = seq(0,1,0.10)) #copy line directly into console
+
+#pretty precipitous decline from 1.0 down to 0.0
+#majority of the assignments in the 0.90 - 1.0 window 
+#want to just look at those with Prob > 0.90 
+adults_all_Prob_0.9 <- filter(adults_all, Probability >= 0.9)
+q <- ggplot(adults_all_Prob_0.9, aes(sample = Probability))
+q + stat_qq() + scale_y_continuous(breaks = seq(0.9,1,0.10)) #copy line directly into console
+
+#really isn't an obvious stutter between 0.90 - 1.0. 
+#use Prob >= 0.90 filter since that was what was done in the past
+adults_all_COLONY_filter <- filter(adults_all, Probability >= 0.90)
+
+```
+
+
+For this COLONY run, all potential parents were considered as both dams and sires (i.e., didn't assign potential parents sex). So we need to combine these filtered assignments back to metadata to identify Parents as either dams or sires, and categorize accordingly. First we are going to combine to the SNPPIT sex updates and then fill in with the original metadata. Use SNPPIT sex updates first because these have been informed by the SNPPIT assignments and are the most informed sex assignment we have. 
+
+```{r}
+
+SNPPIT_sex_list <- read_csv("SNPPIT_run_files/Individ_SexUpdates_fromSNPPITassign.csv")
+
+#now combine to the filtered COLONY assignments by Parent 1 first 
+adults_COLONY_filter_Par1 <- left_join(adults_all_COLONY_filter, SNPPIT_sex_list, by = c("Parent1" = "Individual_ID")) %>%
+  rename(., Parent1_Sex = Sex)
+
+#then for Parent2
+adults_COLONY_filter_Par2 <- left_join(adults_COLONY_filter_Par1, SNPPIT_sex_list, by = c("Parent2" = "Individual_ID")) %>%
+  rename(., Parent2_Sex = Sex)
+
+#now want to combine with original metadata for those individuals that were not in the SNPPIT_sex_list
+#for some reason there are some duplicate entries in this so remove duplicates with unique()
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv") %>%
+  select(., IndividualName, Gender, GenderCorrection, GeneticSex_OtsSEXY3) %>%
+  unique()
+
+#again for parent1 first
+adults_COLONY_filter_Par1_og_meta <- left_join(adults_COLONY_filter_Par2, metadata, by = c("Parent1" = "IndividualName")) %>%
+  rename(., Gender_meta_Parent1 = Gender, GenderCorrect_meta_Parent1 = GenderCorrection, GeneticSex_OtsSEXY3_Parent1 = GeneticSex_OtsSEXY3)
+                                         
+#then for parent2
+adults_COLONY_filter_Par2_og_meta <- left_join(adults_COLONY_filter_Par1_og_meta, metadata, by = c("Parent2" = "IndividualName")) %>%
+  rename(., Gender_meta_Parent2 = Gender, GenderCorrect_meta_Parent2 = GenderCorrection, GeneticSex_OtsSEXY3_Parent2 = GeneticSex_OtsSEXY3)
+
+#now summarize sex for parent1 and parent2
+adults_COLONY_filter_Parent1_sex <- adults_COLONY_filter_Par2_og_meta %>%
+  mutate(., Parent1_Sex_1 = ifelse(is.na(Parent1_Sex), GeneticSex_OtsSEXY3_Parent1, Parent1_Sex)) %>% #use snppit sex first, then genetic sex
+  mutate(., Parent1_Sex_final = ifelse(Parent1_Sex_1 == "?", Gender_meta_Parent1, Parent1_Sex_1)) %>% #if both snppit and genetic sex unknown, use gender (phenotypic sex)
+  relocate(., Parent1_Sex_final, .after = Parent1)
+
+adults_COLONY_filter_Parent2_sex <- adults_COLONY_filter_Parent1_sex %>%
+  mutate(., Parent2_Sex_1 = ifelse(is.na(Parent2_Sex), GeneticSex_OtsSEXY3_Parent2, Parent2_Sex)) %>%
+  mutate(., Parent2_Sex_final = ifelse(Parent2_Sex_1 == "?", Gender_meta_Parent2, Parent2_Sex_1)) %>%
+  relocate(., Parent2_Sex_final, .after = Parent2)
+
+#easiest to write to csv and look through assignments by eye for non-sensical assignments (i.e., a M-M or F-F parent pair)
+write_csv(adults_COLONY_filter_Parent2_sex, "COLONY2_Results/Adults_COLONY_assign_Prob_0.90_ParentSexData.csv")
+
+```
+
+I then went through these assignments passing filter and check parental sex data to make sure the assignments were biologically plausible (which almost all were since it was informed by SNPPIT assignments). For those assignments where both parents had unknown sex, and could not be informed otherwise, I just randomly assigned one as a sire and one as the dam. These accepted assignments are within the Adults_COLONY_assign_filtered_ParSexAssigned.csv file and the parental sex designations are within the Parent_Sex_Assign_by_COLONY_results.csv file. 
+
+Ok now we are going to combine these filtered, parent sex assigned COLONY assignments to the snppit assignments. 
+
+```{r}
+rm(list = ls())
+library(tidyverse)
+
+#read in the processed COLONY assignments
+adults_all_COLONY_filter <- read_csv("COLONY2_Results/Adults_COLONY_assign_filtered_ParSexAssigned.csv", col_types = cols(.default = "c"))
+
+#read in the filtered and finalized SNPPIT trios
+adults_snppit_all <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#for combining with COLONY assignments, want to parse down to following columns
+#and filter for just the adult assignments since that's what we're looking at from COLONY right now
+adults_snppit_all <- adults_snppit_all %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult") %>%
+  unite(., OffspCollection, Kid_LifeHistoryStage, Kid_SampleYear, sep = "_") %>%
+  mutate(., AssignMethod = "snppit")
+
+#want to combine this with the COLONY filtered assignments and just check concordance
+#which should be pretty good since the SNPPIT trios were used to create known maternity/paternity relationships for COLONY
+check <- left_join(adults_snppit_all, adults_all_COLONY_filter, by = c("Kid" = "OffspringID"))
+
+#look for non-matching fathers amonnst those assigned by both COLONY and SNPPIT
+no_match_father <- filter(check, Pa != Sire)
+#0 cases
+
+#look for non-matching mothers amongst those assigned by both COLONY and SNPPIT
+no_match_mother <- filter(check, Ma != Dam)
+#0 cases
+
+#now we only need to add in the assignments from COLONY that weren't found by snppit, since we know all the snppit trios were recovered by COLONY
+new_COLONY_assign <- anti_join(adults_all_COLONY_filter, adults_snppit_all, by = c("OffspringID" = "Kid"))
+
+#many of these are instances where COLONY assigned a generated, placeholder ID for both parents (i.e. parents were unsampled)
+#several others are single father, and single mother assignments
+#and then looks like it identified more trios, but mostly for offspring of broodstock
+#first search for those assignments with unkown father, but known mother
+adults_unk_father <- new_COLONY_assign %>%
+  filter(., grepl("\\*", Sire)) %>%
+  filter(., !grepl("\\#", Dam))
+
+#and then for unknown mothers, but known father
+adults_unk_mother <- new_COLONY_assign %>%
+  filter(., grepl("\\#", Dam)) %>%
+  filter(., !grepl("\\*", Sire))
+
+#and last new trios (i.e., both parents sampled) (laregely broodstock parents not found in snppit apparently)
+adults_trios <- new_COLONY_assign %>%
+  filter(., !grepl("\\*", Sire)) %>%
+  filter(., !grepl("\\#", Dam))
+
+#curious how many distinct individuals the unknown parents in the single parent pairs represent
+no_unk_fathers <- adults_unk_father %>%
+  group_by(., OffspringSampleYear) %>%
+  summarise(Unique_Fathers = n_distinct(Sire))
+#most in 2015-45 unique unsampled fathers
+
+no_unk_mothers <- adults_unk_mother %>%
+  group_by(., OffspringSampleYear) %>%
+  summarise(Unique_Mothers = n_distinct(Dam))
+#most in 2012- 33 unique, unsampled mothers
+
+#now combine the unknown father/mother and trio dataframes
+adults_COLONY <- bind_rows(adults_unk_father, adults_unk_mother, adults_trios)
+
+#need to reformat this COLONY single parent df so we can bind to snppit assignments
+adults_colony_keep <- adults_COLONY %>%
+  mutate(., AssignMethod = "colony") %>%
+  rename(., Kid = OffspringID, Pa = Sire, Ma = Dam, OffspCollection = OffspringSampleYear) %>%
+  select(., OffspCollection, Kid, Pa, Ma, Probability, AssignMethod)
+
+
+#combine final snppit and colony assignments. All snppit assignments will have "NA" in the Probability column, and all COLONY assignments will have "NA" in the FDR and SpawnYear columns
+#only select the shared columns
+adults_combine <- bind_rows(adults_snppit_all, adults_colony_keep) %>%
+  select(., OffspCollection, FDR, Probability, AssignMethod, Kid, Pa, Ma)
+  
+
+save(adults_combine, file ='COLONY2_Results/Adults_SNPPIT_COLONY_filtered_assign.Rdata')
+write_csv(adults_combine, "COLONY2_Results/Adults_SNPPIT_COLONY_filtered_assign.csv")
+```
+

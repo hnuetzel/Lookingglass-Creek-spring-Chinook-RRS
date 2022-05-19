@@ -1,0 +1,849 @@
+---
+title: "Step4_Processing_SNPPIT_Runs"
+author: "Hayley Nuetzel"
+date: "8/13/2021"
+output: html_document
+---
+
+This set of scripts focuses on filtering the final (93 loci) SNPPIT runs and attaching to metadata. I filter assignments by FDR <= 0.01 and Max.P.Pr.Relate==C_Se_Se. After these filters, drop any assingments that have more than 2 Mendelian Incompat loci. After attaching to metadata, only keep those pairings that are plausible given biological sex of parents. 
+
+
+```{r, Adults-2012}
+rm(list = ls())
+library(tidyverse)
+#read in metadata for all collections
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+
+#read in trio assignments for 2012 adults
+trios_2012 <- read_delim("SNPPIT_run_files/Adults2012/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+
+trios_2012_filter <- trios_2012 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2012_filter <- trios_2012_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2012_filter, "SNPPIT_run_files/Adults2012/Adults2012_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2012_sub <- trios_2012_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2012_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2012/Adults2012_SNPPIT_assign_filtered_withMetaData.csv")
+```
+
+
+``` {r, Adults-2013}
+rm(list = ls())
+
+###for 2013 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2013 <- read_delim("SNPPIT_run_files/Adults2013/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2013_filter <- trios_2013 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2013_filter <- trios_2013_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2013_filter, "SNPPIT_run_files/Adults2013/Adults2013_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2013_sub <- trios_2013_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2013_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2013/Adults2013_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Adults-2014}
+rm(list = ls())
+
+###for 2014 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2014 <- read_delim("SNPPIT_run_files/Adults2014/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2014_filter <- trios_2014 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2014_filter <- trios_2014_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2014_filter, "SNPPIT_run_files/Adults2014/Adults2014_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2014_sub <- trios_2014_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2014_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2014/Adults2014_SNPPIT_assign_filtered_withMetaData.csv") 
+
+```
+
+
+``` {r, Adults-2015}
+rm(list = ls())
+
+###for 2015 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2015 <- read_delim("SNPPIT_run_files/Adults2015/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2015_filter <- trios_2015 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2015_filter <- trios_2015_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2015_filter, "SNPPIT_run_files/Adults2015/Adults2015_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2015_sub <- trios_2015_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2015_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2015/Adults2015_SNPPIT_assign_filtered_withMetaData.csv") 
+```
+
+
+``` {r, Adults-2016}
+rm(list = ls())
+
+###for 2016 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2016 <- read_delim("SNPPIT_run_files/Adults2016/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2016_filter <- trios_2016 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2016_filter <- trios_2016_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2016_filter, "SNPPIT_run_files/Adults2016/Adults2016_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2016_sub <- trios_2016_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2016_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2016/Adults2016_SNPPIT_assign_filtered_withMetaData.csv") 
+```
+
+
+``` {r, Adults-2017}
+rm(list = ls())
+
+###for 2017 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2017 <- read_delim("SNPPIT_run_files/Adults2017/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2017_filter <- trios_2017 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2017_filter <- trios_2017_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2017_filter, "SNPPIT_run_files/Adults2017/Adults2017_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2017_sub <- trios_2017_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2017_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2017/Adults2017_SNPPIT_assign_filtered_withMetaData.csv") 
+```
+
+
+
+``` {r, Adults-2018}
+rm(list = ls())
+
+###for 2018 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2018 <- read_delim("SNPPIT_run_files/Adults2018/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2018_filter <- trios_2018 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2018_filter <- trios_2018_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2018_filter, "SNPPIT_run_files/Adults2018/Adults2018_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2018_sub <- trios_2018_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2018_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2018/Adults2018_SNPPIT_assign_filtered_withMetaData.csv") 
+```
+
+
+``` {r, Adults-2019}
+rm(list = ls())
+
+###for 2019 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2019 <- read_delim("SNPPIT_run_files/Adults2019/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2019_filter <- trios_2019 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2019_filter <- trios_2019_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2019_filter, "SNPPIT_run_files/Adults2019/Adults2019_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2019_sub <- trios_2019_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2019_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2019/Adults2019_SNPPIT_assign_filtered_withMetaData.csv") 
+
+```
+
+
+
+``` {r, Adults-2020}
+rm(list = ls())
+
+###for 2020 adults
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2020 <- read_delim("SNPPIT_run_files/Adults2020/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2020_filter <- trios_2020 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2020_filter <- trios_2020_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2020_filter, "SNPPIT_run_files/Adults2020/Adults2020_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2020_sub <- trios_2020_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2020_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Adults2020/Adults2020_SNPPIT_assign_filtered_withMetaData.csv") 
+```
+
+
+``` {r, Juvs-2009}
+rm(list = ls())
+
+###for 2009 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2009 <- read_delim("SNPPIT_run_files/Juvs2009/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2009_filter <- trios_2009 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2009_filter <- trios_2009_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2009_filter, "SNPPIT_run_files/Juvs2009/Juvs2009_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2009_sub <- trios_2009_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2009_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2009/Juvs2009_SNPPIT_assign_filtered_withMetaData.csv") 
+
+```
+
+
+``` {r, Juvs-2010}
+rm(list = ls())
+
+###for 2010 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2010 <- read_delim("SNPPIT_run_files/Juvs2010/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2010_filter <- trios_2010 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2010_filter <- trios_2010_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2010_filter, "SNPPIT_run_files/Juvs2010/Juvs2010_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2010_sub <- trios_2010_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2010_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2010/Juvs2010_SNPPIT_assign_filtered_withMetaData.csv")
+```
+
+
+
+``` {r, Juvs-2011}
+rm(list = ls())
+
+###for 2011 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2011 <- read_delim("SNPPIT_run_files/Juvs2011/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2011_filter <- trios_2011 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2011_filter <- trios_2011_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2011_filter, "SNPPIT_run_files/Juvs2011/Juvs2011_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2011_sub <- trios_2011_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2011_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2011/Juvs2011_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+
+``` {r, Juvs-2012}
+rm(list = ls())
+
+###for 2012 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2012 <- read_delim("SNPPIT_run_files/Juvs2012/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2012_filter <- trios_2012 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2012_filter <- trios_2012_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2012_filter, "SNPPIT_run_files/Juvs2012/Juvs2012_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2012_sub <- trios_2012_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2012_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2012/Juvs2012_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+
+``` {r, Juvs-2013}
+rm(list = ls())
+
+###for 2013 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2013 <- read_delim("SNPPIT_run_files/Juvs2013/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2013_filter <- trios_2013 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2013_filter <- trios_2013_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2013_filter, "SNPPIT_run_files/Juvs2013/Juvs2013_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2013_sub <- trios_2013_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2013_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2013/Juvs2013_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Juvs-2014}
+rm(list = ls())
+
+###for 2014 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2014 <- read_delim("SNPPIT_run_files/Juvs2014/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2014_filter <- trios_2014 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2014_filter <- trios_2014_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2014_filter, "SNPPIT_run_files/Juvs2014/Juvs2014_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2014_sub <- trios_2014_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2014_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2014/Juvs2014_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Juvs-2015}
+rm(list = ls())
+
+###for 2015 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2015 <- read_delim("SNPPIT_run_files/Juvs2015/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2015_filter <- trios_2015 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2015_filter <- trios_2015_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2015_filter, "SNPPIT_run_files/Juvs2015/Juvs2015_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2015_sub <- trios_2015_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2015_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2015/Juvs2015_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+
+``` {r, Juvs-2016}
+rm(list = ls())
+
+###for 2016 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2016 <- read_delim("SNPPIT_run_files/Juvs2016/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2016_filter <- trios_2016 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2016_filter <- trios_2016_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2016_filter, "SNPPIT_run_files/Juvs2016/Juvs2016_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2016_sub <- trios_2016_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2016_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2016/Juvs2016_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Juvs-2017}
+rm(list = ls())
+
+###for 2017 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2017 <- read_delim("SNPPIT_run_files/Juvs2017/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2017_filter <- trios_2017 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2017_filter <- trios_2017_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2017_filter, "SNPPIT_run_files/Juvs2017/Juvs2017_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2017_sub <- trios_2017_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2017_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2017/Juvs2017_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Juvs-2018}
+rm(list = ls())
+
+###for 2018 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2018 <- read_delim("SNPPIT_run_files/Juvs2018/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2018_filter <- trios_2018 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2018_filter <- trios_2018_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2018_filter, "SNPPIT_run_files/Juvs2018/Juvs2018_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2018_sub <- trios_2018_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2018_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2018/Juvs2018_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Juvs-2019}
+rm(list = ls())
+
+###for 2019 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2019 <- read_delim("SNPPIT_run_files/Juvs2019/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2019_filter <- trios_2019 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2019_filter <- trios_2019_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2019_filter, "SNPPIT_run_files/Juvs2019/Juvs2019_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2019_sub <- trios_2019_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2019_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2019/Juvs2019_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r, Juvs-2020}
+rm(list = ls())
+
+###for 2020 juveniles
+metadata <- read_csv("CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+trios_2020 <- read_delim("SNPPIT_run_files/Juvs2020/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2020_filter <- trios_2020 %>%
+  filter(., FDR <= 0.01, MaxP.Pr.Relat == "C_Se_Se") %>%
+  separate(., MendIncLoci, c("Mend1", "Mend2", "Mend3"), ",", remove = FALSE) #if any individual has more than 3 incompatible loci those loci will be dropped, but that is fine, since Mend3 will be filled and we can filter by that
+trios_2020_filter <- trios_2020_filter %>%
+  filter(., is.na(Mend3)) #only wnat those that have NA in the Mend 3 column, or in other words, only 2 mendelian incompatible loci
+
+#write to csv
+write_csv(trios_2020_filter, "SNPPIT_run_files/Juvs2020/Juvs2020_FilteredTrios.csv")
+
+#from filtered trio, only need subset of columns
+trios_2020_sub <- trios_2020_filter %>%
+  select(., FDR, Kid, Pa, Ma)
+
+#then combine Pa metadata
+assign_by_Pa <- left_join(trios_2020_sub, metadata, by = c("Pa" = "IndividualName")) %>%
+  dplyr::rename(., Pa_LifeHistoryStage = Analytical_LifeHistoryStage, Pa_Disposition = Analytical_Disposition, Pa_Origin = Analytical_Origin, Pa_SampleYear = Date.Year, Pa_Date = Date, Pa_Location = Location, Pa_ForkLength = ForkLength, Pa_FinClips = FinClips, Pa_Gender = Gender, Pa_GenderCorrection = GenderCorrection, Pa_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#then combine by Ma
+assign_by_Ma <- left_join(assign_by_Pa, metadata, by = c("Ma" = "IndividualName")) %>%
+  dplyr::rename(., Ma_LifeHistoryStage = Analytical_LifeHistoryStage, Ma_Disposition = Analytical_Disposition, Ma_Origin = Analytical_Origin, Ma_SampleYear = Date.Year, Ma_Date = Date, Ma_Location = Location, Ma_ForkLength = ForkLength, Ma_FinClips = FinClips, Ma_Gender = Gender, Ma_GenderCorrection = GenderCorrection, Ma_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3)
+
+#lastly by kid
+assign_by_kid <- left_join(assign_by_Ma, metadata, by = c("Kid" = "IndividualName")) %>%
+  dplyr::rename(., Kid_LifeHistoryStage = Analytical_LifeHistoryStage, Kid_Disposition = Analytical_Disposition, Kid_Origin = Analytical_Origin, Kid_SampleYear = Date.Year, Kid_Date = Date, Kid_Location = Location, Kid_ForkLength = ForkLength, Kid_FinClips = FinClips, Kid_Gender = Gender, Kid_GenderCorrection = GenderCorrection, Kid_GeneticSex_OtsSEXY3 = GeneticSex_OtsSEXY3) %>%
+  select(., 1, 2, 3, 4, 27:37, 5:26)
+
+#write to csv
+write_csv(assign_by_kid, "SNPPIT_run_files/Juvs2020/Juvs2020_SNPPIT_assign_filtered_withMetaData.csv")
+
+```
+
+
+``` {r}
+rm(list = ls())
+
+#combine all filtered metadata results files into one to streamline sex calling
+adults12 <- read_csv("SNPPIT_run_files/Adults2012/Adults2012_SNPPIT_assign_filtered_withMetaData.csv")
+adults13 <- read_csv("SNPPIT_run_files/Adults2013/Adults2013_SNPPIT_assign_filtered_withMetaData.csv")
+adults14 <- read_csv("SNPPIT_run_files/Adults2014/Adults2014_SNPPIT_assign_filtered_withMetaData.csv")
+adults15 <- read_csv("SNPPIT_run_files/Adults2015/Adults2015_SNPPIT_assign_filtered_withMetaData.csv")
+adults16 <- read_csv("SNPPIT_run_files/Adults2016/Adults2016_SNPPIT_assign_filtered_withMetaData.csv")
+adults17 <- read_csv("SNPPIT_run_files/Adults2017/Adults2017_SNPPIT_assign_filtered_withMetaData.csv")
+adults18 <- read_csv("SNPPIT_run_files/Adults2018/Adults2018_SNPPIT_assign_filtered_withMetaData.csv")
+adults19 <- read_csv("SNPPIT_run_files/Adults2019/Adults2019_SNPPIT_assign_filtered_withMetaData.csv")
+adults20 <- read_csv("SNPPIT_run_files/Adults2020/Adults2020_SNPPIT_assign_filtered_withMetaData.csv")
+
+juvs09 <- read_csv("SNPPIT_run_files/Juvs2009/Juvs2009_SNPPIT_assign_filtered_withMetaData.csv")
+juvs10 <- read_csv("SNPPIT_run_files/Juvs2010/Juvs2010_SNPPIT_assign_filtered_withMetaData.csv")
+juvs11 <- read_csv("SNPPIT_run_files/Juvs2011/Juvs2011_SNPPIT_assign_filtered_withMetaData.csv")
+juvs12 <- read_csv("SNPPIT_run_files/Juvs2012/Juvs2012_SNPPIT_assign_filtered_withMetaData.csv")
+juvs13 <- read_csv("SNPPIT_run_files/Juvs2013/Juvs2013_SNPPIT_assign_filtered_withMetaData.csv")
+juvs14 <- read_csv("SNPPIT_run_files/Juvs2014/Juvs2014_SNPPIT_assign_filtered_withMetaData.csv")
+juvs15 <- read_csv("SNPPIT_run_files/Juvs2015/Juvs2015_SNPPIT_assign_filtered_withMetaData.csv")
+juvs16 <- read_csv("SNPPIT_run_files/Juvs2016/Juvs2016_SNPPIT_assign_filtered_withMetaData.csv")
+juvs17 <- read_csv("SNPPIT_run_files/Juvs2017/Juvs2017_SNPPIT_assign_filtered_withMetaData.csv")
+juvs18 <- read_csv("SNPPIT_run_files/Juvs2018/Juvs2018_SNPPIT_assign_filtered_withMetaData.csv")
+juvs19 <- read_csv("SNPPIT_run_files/Juvs2019/Juvs2019_SNPPIT_assign_filtered_withMetaData.csv")
+juvs20 <- read_csv("SNPPIT_run_files/Juvs2020/Juvs2020_SNPPIT_assign_filtered_withMetaData.csv")
+
+
+all <- bind_rows(adults12, adults13, adults14, adults15, adults16, adults17, adults18, adults19, adults20, juvs09, juvs10, juvs11, juvs12, juvs13, juvs14, juvs15, juvs16, juvs17, juvs18, juvs19, juvs20)
+
+
+write_csv(all, "SNPPIT_run_files/All_collections_filteredTrios_withMetaData.csv")
+#I then went through this file by hand and added a "Pa_final_sex" and "Ma_final_sex" column, which was informed by gender data, genetic sex data and trios
+#each parent was then properly categorized as "Pa" or "Ma" and acceptable trios are found in All_collections_filteredTrios_withMetaData.xlsx
+#also check against previous Feb SNPPIT trios and really strong corcordance amongst those individuals assigned in both 
+
+```
+
+

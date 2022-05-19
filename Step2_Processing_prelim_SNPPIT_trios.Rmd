@@ -1,0 +1,79 @@
+---
+title: "Processing_prelim_SNPPIT_trios"
+author: "Hayley Nuetzel"
+date: "2/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First going to review all preliminary SNPPIT assignments to identify loci often implicated as Mendelian Incompatible. These loci are likely vulnerable to high genotyping error. 
+
+```{r, Mendelian-Incompatible}
+rm(list = ls())
+library(tidyverse)
+
+#read in parentage assignments
+trios_2012 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2012/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2013 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2013/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2014 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2014/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2015 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2015/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2016 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2016/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2017 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2017/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2018 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2018/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2019 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2019/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+trios_2020 <- read_delim("SNPPIT_prelim_run_files/Results/Adults2020/snppit_output_ParentageAssignments.txt", delim = "\t", na = "---")
+
+
+#combine all into one 
+all <- bind_rows(trios_2012, trios_2013, trios_2014, trios_2015, trios_2016, trios_2017, trios_2018, trios_2019, trios_2020)
+
+#filter by FDR <0.01
+all_1 <- filter(all, FDR <= 0.01) %>%
+  filter(., MaxP.Pr.Relat == "C_Se_Se")
+
+#now we want to pull the Medelian Incompatible Loci column
+MendIncompat <- select(all_1, MendIncLoci)
+
+#split each loci into its own column. 
+#not sure how many loci are in any given row, so default to 10 to start
+MendIncompat_wide <- separate(MendIncompat, 'MendIncLoci', paste("Locus", 1:10, sep="_"), sep=",")
+
+#turns out there are 3 so modify accordingly 
+MendIncompat_wide <- separate(MendIncompat, 'MendIncLoci', paste("Locus", 1:3, sep="_"), sep=",")
+
+#now want to stack each column into one
+locus_1 <- select(MendIncompat_wide, Locus_1) %>%
+  drop_na() %>%
+  dplyr::rename(., Locus = Locus_1)
+
+locus_2 <- select(MendIncompat_wide, Locus_2) %>%
+  drop_na() %>%
+  dplyr::rename(., Locus = Locus_2)
+
+locus_3 <- select(MendIncompat_wide, Locus_3) %>%
+  drop_na() %>%
+  dplyr::rename(., Locus = Locus_3)
+
+combined <- bind_rows(locus_1, locus_2, locus_3)
+
+#then group the loci list and count number of times it's listed
+counts <- combined %>%
+  group_by(., Locus) %>%
+  count()
+
+#now want to compute rate of incompatability, so divide each count by the number of individuals assigned after filtering. This was 7011 -> the number of rows in the all_1 data frame
+MendInc_rate <- counts %>%
+  mutate(., Individ_assigned = 7011) %>%
+  mutate(., MendIncRate = freq/Individ_assigned)
+
+#actually only two that are above the standard genotyping error rate of 0.0005, and one that is right at 0.0005
+#will drop the first two and the base pair switch loci from the eventual 93 loci panel in Step 3
+#write to csv
+write_csv(MendInc_rate, "SNPPIT_prelim_run_files/LKG_MendInc_Loci.csv")
+
+```
+
+

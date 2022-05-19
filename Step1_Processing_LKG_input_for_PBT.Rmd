@@ -1,0 +1,529 @@
+___
+title: "Processing_LKG_input_for_parentage"
+author: "Hayley Nuetzel"
+date: "8/9/2021"
+output: html_document
+___
+
+```{r knitr_options, include=FALSE}
+library(knitr)
+opts_chunk$set(warning=FALSE, message=FALSE)
+
+# install packages if necessary:
+if(!require("tidyverse")) install.packages("tidyverse", repos="https://cran.us.r_project.org")
+if(!require("rubias")) install.packages("tidyverse", repos="https://cran.us.r_project.org")
+```
+
+This document is built off of the step_by_step analytical pipeline for completing Parentage Based Tagging and Genetic Stock Identification analyses for chinook salmon. 
+
+##PHASE #1 _ IMPORT DATA, PREPARATION AND SCREENING OF SAMPLES
+  
+  This step generally involves the import and cleaning of Lookingglass data exported from Progeny. Before reading in this file, I made the following changes in excel: 
+  - created an "Analytical_" origin, life history and disposition column so that I have regular groups that will be easy to filter by in R
+  - swapped out any symbols other than "_" (i.e.., -/./') for a "_" in the locus names
+  - created a subset of individuals that only includes those natural spawners/carcasses and juveniles. These are the individuals of interest to our study and I wanted to make sure we were getting the best marker panel possible given our starting dataset (i.e., why I dropped the broodstock individuals out when identifying markers to include for the genepop step).  
+  
+  During this step we review allele frequency distribution stats and investigate any loci that might have failed for all individuals so that we can select an appropriate marker panel for analysis. 
+  
+``` {r}
+rm(list=ls())
+
+library(tidyverse)
+data <- read_csv("StarterFiles/LKG_NaturalSpawners_Carcasses_Juveniles_2008.2020.csv", col_types = cols(.default = "c"))
+
+#seperate out metadata
+LKG_meta <- select(data, 1:33)
+LKG_geno <- select(data, 34:735)
+  
+#subset metadata
+LKG_meta_1 <- select(LKG_meta, 'Individual Name', Analytical_LifeHistoryStage, Analytical_Disposition, Analytical_Origin, Date, 'Date- Year only', Location, 'Length- Fork (mm)', 'Fin Clips', Gender, 'Gender Correction')
+
+#Now combine metadata back to genotypes
+LKG_combo <- cbind.data.frame(LKG_meta_1, LKG_geno)
+
+#again separate out genotype data and change all NAs to "0"
+#for some reason, this wouldn't work the first time I separated out the metadata and genotype data
+metadata <- select(LKG_combo, 1:11)
+genotypes <- select(LKG_combo, 12:713) %>%
+  replace(., is.na(.), 0)
+
+data1 <- cbind(metadata, genotypes, stringsAsFactors=FALSE)
+
+#add column for Genetic Sex
+#many of the earlier samples were genotyped with the Ots_SEXY1 marker but it looks like the data was questionable for this individuals
+#just including Ots_SEXY3, so many fish will have an unknown genetic sex for this dataset
+data1 <- add_column(data1, GeneticSex_OtsSEXY3="", .after = 11)
+
+#fthen paste in genotypes
+data1$GeneticSex_OtsSEXY3 <- paste0(data1$`Ots_SEXY3_1_A1`, data1$`Ots_SEXY3_1_A2`)
+
+#replace data as appropriate
+data1$GeneticSex_OtsSEXY3 <- gsub("00","?", data1$GeneticSex_OtsSEXY3)
+data1$GeneticSex_OtsSEXY3 <- gsub("XX", "F", data1$GeneticSex_OtsSEXY3)
+data1$GeneticSex_OtsSEXY3 <- gsub("XY", "M", data1$GeneticSex_OtsSEXY3)
+
+
+#also want to do this for the gender correction column
+data1$`Gender Correction` <- gsub("Female", "F", data1$`Gender Correction`)
+data1$`Gender Correction` <- gsub("Male", "M", data1$`Gender Correction`)
+
+###curious to see how genetic sex and gender data align
+genetic_SEXY3_vs_gender <- filter(data1, GeneticSex_OtsSEXY3 != Gender) %>%
+  filter(., GeneticSex_OtsSEXY3 != "?") %>%
+  filter(., Gender != "U") #587 differences
+
+genetic_SEXY3_vs_gendercorrect <- filter(data1, GeneticSex_OtsSEXY3 != `Gender Correction`) %>%
+  filter(., GeneticSex_OtsSEXY3 != "?") #30 differences
+###seems as though gender correction aligns with GeneticSex_OtsSEXY3 best, but this would make sense since I believe genetic sex informs gender correction
+
+  
+#write parsed down progeny export to csv
+#first want to rename some of the column headings so that they are easier to pull out later
+data2 <- dplyr::rename(data1, IndividualName = 'Individual Name', Date.Year = 'Date- Year only', ForkLength = 'Length- Fork (mm)', FinClips = 'Fin Clips', GenderCorrection = 'Gender Correction')
+
+#separate out into metadata file and genotype file and write to csv
+final_meta <- select(data2, 1:12) 
+final_genotypes <- dplyr::select(data2, IndividualName, 13:714)
+
+write_csv(final_meta, "CleanedProgenyExport/LKG_Meta_Cleaned.csv")
+write_csv(final_genotypes, "CleanedProgenyExport/LKG_Geno_Cleaned.csv")
+
+#also prep a combined file for IDFGEN
+final_meta_1 <- final_meta %>%
+  unite(., Collection, Analytical_LifeHistoryStage, Date.Year, remove = FALSE) %>%
+  relocate(., Collection, .before = IndividualName)
+
+#remove sex markers
+final_genotypes_1 <- select(final_genotypes, -'Ots_SEXY3_1_A1', -'Ots_SEXY3_1_A2')
+
+LKG_IDFGEN <- left_join(final_meta_1, final_genotypes_1)
+
+LKG_IDFGEN_noDups <- LKG_IDFGEN %>%
+  distinct()
+
+write_delim(LKG_IDFGEN_noDups, "IDFGEN_inputs/LKG_IDFGEN_NoBroodstock_input.txt", delim = "\t")
+
+```
+
+
+Can now read these data into IDFGEN to create genepop file that will allow us to review and clean up loci. 
+
+``` {r}
+rm(list=ls())
+
+source("/Users/hnuetzel/OneDrive - Columbia River Inter-Tribal Fish Commission/Lookingglass_RRS_Final/IDFGEN/package/main.r", chdir = TRUE)
+getwd()
+library(tidyverse)
+
+#Import data
+readInData(inputFile = "IDFGEN_inputs/LKG_IDFGEN_NoBroodstock_input.txt", genotypeStartColumn = 14, popColumn = 1, sortBPs = F)
+
+Populations
+summary(Populations)
+#export as a genepop file for using GPoppin
+dumpGenepop(Populations, title = "LKG_Genepop", filename = "Genepop/LKG_GenePop_NoBroodstock_NoSexMarkers.gen")
+```
+
+
+Now can use the exported genepop file in genepop R package to generate some basic summary statistics.
+
+``` {r}
+rm(list = ls())
+
+#use genepop package to get basic stats
+library(genepop)
+
+###DON'T RUN THIS LINE UNLESS YOU REALLY WANT TO RE-WRITE THE BASIC INFO FILE AND THEN RE-CREATE THE ALLELE FREQ FILE###
+basic_info("Genepop/LKG_GenePop_NoBroodstock_NoSexMarkers.gen", "Genepop/LKG_Markers_NoBroodstock_BasicInfo_Genepop.txt")
+
+#I then went through this output by hand to re-format the table of allele frequencies into something readable by R
+#this is saved at AlleleFreq_LKG_AllLoci_ByCollection.csv
+AlleleFreq <- read_csv("Genepop/AlleleFreq_LKG_AllLoci_ByCollection.csv", col_types = cols(.default = "c"))
+  
+#loci that didn't genotype for any population will have "0" in the genes column
+failed_loci <- filter(AlleleFreq, Genes == "0")
+
+#there were 26 "collections" in the input, so want to see which loci failed for many of the 26 collections
+failed_loci_summ <- failed_loci %>%
+  group_by(., Locus) %>%
+  tally()
+
+#theres a pretty obvious jump, where loci either failed in 20 or more collections and then another group failed in 2 collections or less. 
+
+#I also noticed while creating this file though, that what I believe is the Juvenile_2008 collection failed at a lot more loci. This particular collection could include offspring of BY2008 but not super likely. So may want to drop this collection out when considering loci to drop
+#only problem is both the adults from 2008 and juveniles from 2008 are coded by the same ID in the AlleleFreq file: "LKG-Ots08-" so filtering these out will remove Adults from 2008 too
+failed_loci_no2008 <- filter(failed_loci, Pop != "LKG-Ots08-")
+#then summarize 
+failed_loci_summ_no2008 <- failed_loci_no2008 %>%
+  group_by(., Locus) %>%
+  tally()
+#also pretty obvious jump where locus failed at 18 or more collections. 
+#This list is much shorter than the one when considering adults and juvs from 2008. I think we should use this list to parse out HiMissers
+
+write_csv(failed_loci_summ_no2008, "Genepop/Failed_Loci_Summary_ByCollection.csv")
+
+
+#now want to look at MAF - use cut-off of 0.02
+#allele1 first and then allele2 and want to see how many collections have MAF < 0.02 per locus in these filtered dfs 
+MAF_allele1 <- filter(AlleleFreq, Allele1 < 0.02) %>%
+  group_by(., Locus) %>%
+  tally()
+MAF_allele2 <- filter(AlleleFreq, Allele2 < 0.02) %>%
+  group_by(., Locus) %>%
+  tally()
+
+#combine these two into one
+MAF_all <- bind_rows(MAF_allele1, MAF_allele2)
+
+#not as super clear where there is a break in the number of collections involved. But we can drop any loci that have MAF < 0.02 for the majority of collections - which for 26 total collections, would be 13 or more collections
+MAF_filter <- filter(MAF_all, n >= 13)
+
+
+write_csv(MAF_filter, "Genepop/Loci_MAF_lessthan0.02.csv")
+```
+
+
+Now we are going to turn back to IDFGEN to export a gsi file. Based on failures, MAF and loci that were not used in earlier marker panels, we have parsed down the panel set to 101 loci. This panel will likely be reduced further after preliminary SNPPIT runs to survey for loci vulnerable to high genotyping error. 
+
+We are now going to start with an input file that includes broodstock individuals as well as natural spawners and juveniles. So we need to clean up that input file and create an input for IDFGEN. 
+
+``` {r}
+rm(list=ls())
+
+library(tidyverse)
+data <- read_csv("StarterFiles/LKG_NaturalSpawners_Broodstock_Juveniles_2008.2020.csv", col_types = cols(.default = "c"))
+
+#seperate out metadata
+LKG_meta <- select(data, 1:33)
+LKG_geno <- select(data, 34:735)
+  
+#subset metadata
+LKG_meta_1 <- select(LKG_meta, 'Individual Name', Analytical_LifeHistoryStage, Analytical_Disposition, Analytical_Origin, Date, 'Date- Year only', Location, 'Length- Fork (mm)', 'Fin Clips', Gender, 'Gender Correction')
+
+#Now combine metadata back to genotypes
+LKG_combo <- cbind.data.frame(LKG_meta_1, LKG_geno)
+
+#again separate out genotype data and change all NAs to "0"
+#for some reason, this wouldn't work the first time I separated out the metadata and genotype data
+metadata <- select(LKG_combo, 1:11)
+genotypes <- select(LKG_combo, 12:713) %>%
+  replace(., is.na(.), 0)
+
+data1 <- cbind(metadata, genotypes, stringsAsFactors=FALSE)
+
+#add column for Genetic Sex
+#many of the earlier samples were genotyped with the Ots_SEXY1 marker but it looks like the data was questionable for this individuals
+#just including Ots_SEXY3, so many fish will have an unknown genetic sex for this dataset
+data1 <- add_column(data1, GeneticSex_OtsSEXY3="", .after = 11)
+
+#fthen paste in genotypes
+data1$GeneticSex_OtsSEXY3 <- paste0(data1$`Ots_SEXY3_1_A1`, data1$`Ots_SEXY3_1_A2`)
+
+#replace data as appropriate
+data1$GeneticSex_OtsSEXY3 <- gsub("00","?", data1$GeneticSex_OtsSEXY3)
+data1$GeneticSex_OtsSEXY3 <- gsub("XX", "F", data1$GeneticSex_OtsSEXY3)
+data1$GeneticSex_OtsSEXY3 <- gsub("XY", "M", data1$GeneticSex_OtsSEXY3)
+
+
+#also want to do this for the gender correction column
+data1$`Gender Correction` <- gsub("Female", "F", data1$`Gender Correction`)
+data1$`Gender Correction` <- gsub("Male", "M", data1$`Gender Correction`)
+
+###curious to see how genetic sex and gender data align
+genetic_SEXY3_vs_gender <- filter(data1, GeneticSex_OtsSEXY3 != Gender) %>%
+  filter(., GeneticSex_OtsSEXY3 != "?") %>%
+  filter(., Gender != "U") #710 differences
+
+genetic_SEXY3_vs_gendercorrect <- filter(data1, GeneticSex_OtsSEXY3 != `Gender Correction`) %>%
+  filter(., GeneticSex_OtsSEXY3 != "?") #30 differences
+###seems as though gender correction aligns with GeneticSex_OtsSEXY3 best, but this would make sense since I believe genetic sex informs gender correction
+
+  
+#write parsed down progeny export to csv
+#first want to rename some of the column headings so that they are easier to pull out later
+data2 <- dplyr::rename(data1, IndividualName = 'Individual Name', Date.Year = 'Date- Year only', ForkLength = 'Length- Fork (mm)', FinClips = 'Fin Clips', GenderCorrection = 'Gender Correction')
+
+#separate out into metadata file and genotype file and write to csv
+final_meta <- select(data2, 1:12) 
+final_genotypes <- dplyr::select(data2, IndividualName, 13:714)
+
+write_csv(final_meta, "CleanedProgenyExport/LKG_Meta_withBroodstock_Cleaned.csv")
+write_csv(final_genotypes, "CleanedProgenyExport/LKG_Geno_withBroodstock_Cleaned.csv")
+
+#also prep a combined file for IDFGEN
+final_meta_1 <- final_meta %>%
+  unite(., Collection, Analytical_LifeHistoryStage, Date.Year, remove = FALSE) %>%
+  relocate(., Collection, .before = IndividualName)
+
+#remove sex markers
+final_genotypes_1 <- select(final_genotypes, -'Ots_SEXY3_1_A1', -'Ots_SEXY3_1_A2')
+
+LKG_IDFGEN <- left_join(final_meta_1, final_genotypes_1)
+
+#remove any duplicate rows (an issue with the broodstock samsples for some reason)
+LKG_IDFGEN_noDups <- LKG_IDFGEN %>%
+  distinct()
+
+write_delim(LKG_IDFGEN_noDups, "IDFGEN_inputs/LKG_IDFGEN_Broodstock_NaturalSpawners_Juvs_input.txt", delim = "\t")
+
+```
+
+
+
+``` {r}
+#Call IDFGEN 
+rm(list=ls())
+
+source("/Users/hnuetzel/OneDrive - Columbia River Inter-Tribal Fish Commission/Lookingglass_RRS_Final/IDFGEN/package/main.r", chdir = TRUE)
+getwd()
+library(tidyverse)
+
+#Import data
+readInData(inputFile = "IDFGEN_inputs/1_LKG_IDFGEN_Broodstock_NaturalSpawners_Juvs_input.txt", genotypeStartColumn = 14, popColumn = 1, sortBPs = F)
+
+#Checking for switched base pairs...
+#** Warning: 3 markers were found with 'AB' - 'BA' allele switches
+
+basepairSwitches(Populations, filename = "IDFGEN_outputs/BasePairSwitches_LKG_all.txt") #these are eventually dropped in the 93 SNP panel
+
+
+summary(Populations)
+summary(Markers)
+
+#Set up 101 SNP Panel 
+PBTPanel_101Loci <- c("Ots_100884_287",	"Ots_101554_407",	"Ots_101704_143",	"Ots_102414_395",	"Ots_102801_308",	"Ots_103122_180",	"Ots_104415_88",	"Ots_105105_613",	"Ots_105132_200",	"Ots_105385_421",	"Ots_105407_117",	"Ots_108735_302",	"Ots_109525_816",	"Ots_110064_383",	"Ots_110201_363",	"Ots_110495_380",	"Ots_110551_64",	"Ots_110689_218",	"Ots_112301_43",	"Ots_112419_131",	"Ots_112820_284",	"Ots_112876_371",	"Ots_113242_216",	"Ots_115987_325",	"Ots_117432_409",	"Ots_118205_61",	"Ots_118938_325",	"Ots_123921_111",	"Ots_124774_477",	"Ots_128757_61R",	"Ots_129170_683",	"Ots_129458_451",	"Ots_94857_232R",	"Ots_94903_99R",	"Ots_96500_180",	"Ots_96899_357R",	"Ots_ARNT",	"Ots_AsnRS_60",	"Ots_brp16_64",	"Ots_CD59_2",	"Ots_CirpA",	"Ots_cox1_241",	"Ots_crRAD16540_50",	"Ots_crRAD55400_59",	"Ots_crRAD57376_68",	"Ots_crRAD57687_34",	"Ots_E2_275",	"Ots_Est1363",	"Ots_Est740",	"Ots_ETIF1A",	"Ots_FGF6B_1",	"Ots_GCSH",	"Ots_GDH_81x",	"Ots_GPH_318",	"Ots_GTH2B_550",	"Ots_HMGB1_73",	"Ots_hsc71_3__488",	"Ots_HSP90B_100",	"Ots_IGF_I_1_76",	"Ots_Ikaros_250",	"Ots_IL8R_C8",	"Ots_mapK_3__309",	"Ots_mapKpr_151",	"Ots_MHC2",	"Ots_mybp_85",	"Ots_NFYB_147",	"Ots_nkef_192",	"Ots_NOD1",	"Ots_ntl_255",	"Ots_OTALDBINT1_SNP1",	"Ots_OTDESMIN19_SNP1",	"Ots_OTSTF1_SNP1",	"Ots_P53",	"Ots_parp3_286",	"Ots_pigh_105",	"Ots_pop5_96",	"Ots_ppie_245",	"Ots_Prl2",	"Ots_RAG3",	"Ots_redd1_187",	"Ots_S7_1",	"Ots_SClkF2R2_135",	"Ots_SWS1op_182",	"Ots_TAPBP",	"Ots_TGFB",	"Ots_Thio",	"Ots_TLR3",	"Ots_tpx2_125",	"Ots_txnip_321",	"Ots_u07_07_161",	"Ots_u07_17_135",	"Ots_u07_18_378",	"Ots_u07_25_325",	"Ots_u07_49_290",	"Ots_u1002_75",	"Ots_u211_85",	"Ots_u4_92",	"Ots_u6_75",	"Ots_unk526",	"Ots_vatf_251",	"Ots_ZR_575")
+
+
+#find failed individuals (use 10% of the loci number to find the threshold for missing data)
+#originally used 5% threshold but resulted in nearly half of the individuals being dropped in certain collection years
+#this is saying find individuals that failed to genotype at 10 or more loci
+failed.indiv  <- findNoCalls(Populations, 10, PBTPanel_101Loci)
+
+#*** 1332 total individuals found
+dumpTable(failed.indiv, filename = "IDFGEN_outputs/failed_indiv_101Loci_PreDup.txt")
+removeIndividuals(failed.indiv)
+#*** 1332 total individuals have been removed *** 
+summary(Populations)
+
+#can now export this file in gsi format for reading into rubias and performing duplicate anlaysis
+dumpBaseline(Populations, markers = PBTPanel_101Loci, fileType = "gsi_sim", filename = "IDFGEN_outputs/LKG_gsi_sim_101SNP.txt")
+
+
+#Now load up rubias and run duplicate analysis
+library(rubias)
+#read in LKG gsi_sim formatted file and convert to rubias format
+#I simply duplicated the collection column here to create repunits to fulfill the "reference" file format requirments
+LKG_rubias <- read_gsi_sim("IDFGEN_outputs/LKG_gsi_sim_101SNP.txt", "reference", repunits = NULL) %>%
+  mutate(., repunit_1 = collection) %>%
+  select(., 1, 207, 3, 4, 5:206) %>%
+  dplyr::rename(., repunit = repunit_1)
+
+#Rubias manual notes that repunit and collection column must be character types, while the locus columns must also be character or integer
+#check column types of locus columns and coerce all columns to be character type accordingly
+head(LKG_rubias)
+LKG_rubias_1 <- LKG_rubias %>%
+  mutate_if(is.double,as.character)
+
+
+#now look for duplicates within the parent baseline
+matching_pairs <- close_matching_samples(D = LKG_rubias_1,
+                                         gen_start_col = 5, 
+                                         min_frac_non_miss = 0.85, 
+                                         min_frac_matching = 0.94)
+
+#write to csv
+write_csv(matching_pairs, "Rubias_DuplicateAnalysis/LKG_match_indiv_101SNP_panel.csv")
+
+
+######### Use Connected Components to Process Duplicate Samples ############
+#Now the duplicate function in rubias only compares individuals in a pairwise fashion, so you could run into a situation like this: 
+#A = B, and A = C, therefore A = B = C. 
+#in order connect these sort of duplicate samples, we will use the BiocManager tool
+
+#modify matching_pairs dataframe so that can be read in this analysis
+LKG_dup <- matching_pairs %>%
+  select(., indiv_1, collection_1, indiv_2, collection_2, num_non_miss, num_match) %>%
+  mutate(., Proportion = num_match/num_non_miss) %>%
+  unite(., Sample1, indiv_1, collection_1, sep = ".", remove = TRUE) %>%
+  unite(., Sample2, indiv_2, collection_2, sep = ".", remove = TRUE)
+
+#most of the duplicates found have a score of "1.0" meaning they matched on all compared loci. #and were compared at a minimum of 89 loci
+
+#load Bioconductor
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+#run to see which version of BiocManager is in use
+BiocManager::version()
+#update version appropriately
+BiocManager::install(version = "3.10")
+BiocManager::install("graph")
+BiocManager::install("RBGL")
+BiocManager::install("gRbase")
+
+library(gRbase)
+library(RBGL)
+library(tidyverse)
+
+#use connected components to create a graphical representation of duplicates, forming clusters of individuals found in multiple pariwise comparisons
+#Fair warning: Eric Anderson wrote this function for me, so my ability to troubleshoot this bit of code is marginal at best 
+edgelist <- lapply(1:nrow(LKG_dup), function(x) c(LKG_dup$Sample1[x], LKG_dup$Sample2[x]))
+gR <- gRbase::ug(edgelist)
+CnC <- graph::connComp(gR)  # these are the connected components
+names(CnC) <- 1:length(CnC)
+
+clust_df <- lapply(CnC, function(x) tibble(ID = x)) %>% bind_rows(.id = "Cluster") 
+
+clust_df_1 <- clust_df %>%
+  group_by(Cluster) %>% 
+  add_tally() %>%
+  dplyr::rename(num_in_clust = n) %>%
+  arrange(desc(num_in_clust))
+
+#now want to reformat so that data frame is organized in wide format (i.e. more columns and less rows) rather than long format
+#First separate indiv ID from collection name 
+clust_df_1 <- separate(clust_df_1, ID, c("Indiv", "Collection"), sep = "[.]")
+
+#now pivot wider
+clust_df_2 <- 
+  dplyr::group_by(clust_df_1, Cluster) %>% 
+  dplyr::mutate(count = row_number()) %>%
+  pivot_wider(names_from = count, values_from = c(Indiv, Collection))
+
+#restructure so collection_1 follows indiv_1 and so on
+clust_df_3 <- dplyr::select(clust_df_2, Cluster, num_in_clust, Indiv_1, Collection_1, Indiv_2, Collection_2, Indiv_3, Collection_3)
+
+#want to see if there are any matching pairs that involve individuals from different collections
+# can easily check by eye that the 6 clusters involving 3 individuals are all from the same collection year
+#So can just look for those that are different between collection1 and collection2
+dups_diff_collect <- filter(clust_df_3, Collection_1 != Collection_2)
+#Have 9 occurences of this. Interestingly, 7 appear to be individuals that were sampled as juveniles and then again as adults 2-3 years later! 
+#one appears to be a juvenile that was sampled in 2015 and again in 2016
+#and the last appears to be a juvenile precocial from 2020 that was sampled as a post-spawn carcass!
+
+#Ok now back to formatting the list of individuals to remove
+#for the duplicates where individuals are only from the same collection, we can just keep one individual per cluster
+#this way of filtering will also include those clusters that have 3 individuals
+dups_same_clust <- filter(clust_df_3, Collection_1 == Collection_2)
+
+indiv_to_remove_1 <- select(dups_same_clust, Cluster, Indiv_2, Collection_2, Indiv_3, Collection_3) %>%
+  unite(., "Individual_2", Indiv_2:Collection_2, sep = ":") %>%
+  unite(., "Individual_3", Indiv_3:Collection_3, sep = ":") %>%
+  pivot_longer(., -Cluster, names_to = "Indiv_No", values_to = "Indiv_ID") %>%
+  select(., Cluster, Indiv_ID) %>%
+  filter(., Indiv_ID != "NA:NA") %>%
+  separate(., Indiv_ID, c("Individual", "Population"), sep = ":") %>%
+  select(., Population, Individual)
+
+#for the dups_diff_collect df, we can generally keep all individuals on that list because the juveniles are never going to be run against themselves as potential parent (i.e., a juvenile from 2011 will not be run against a parent pool of adults from 2014)
+#however, there is one cluster from which we only want to grab one individual representative - cluster 629 - the two juvenile matches
+indiv_to_remove_2 <- filter(dups_diff_collect, Cluster == "629") %>%
+  select(., Cluster, Collection_2, Indiv_2) %>%
+  dplyr::rename(., Population = Collection_2, Individual = Indiv_2)
+
+#combine the two
+indiv_to_remove <- bind_rows(indiv_to_remove_1, indiv_to_remove_2)
+
+#write to csv
+write_csv(indiv_to_remove, "Rubias_DuplicateAnalysis/LKG_dup_indiv_to_remove.csv")
+
+```
+
+
+Ok now we can go back to the IDFGEN_input file and remove those individuals listed in the LKG_dup_indiv_to_remove.csv file and then use IDFGEN to format SNPPIT files. I'm running SNPPIT naive of parent sex since there were so many issues with genetic and field sex for this dataset. 
+
+
+``` {r}
+rm(list=ls())
+#first removing the duplicates and failed individuals from the IDFGEN input
+library(tidyverse)
+
+IDFGEN_input <- read_delim("IDFGEN_inputs/LKG_IDFGEN_Broodstock_NaturalSpawners_Juvs_input.txt", delim = "\t", col_types = cols(.default = "c"))
+dup.indiv.to.remove <- read_csv("Rubias_DuplicateAnalysis/LKG_dup_indiv_to_remove.csv")
+failed.indiv.to.remove <- read_delim("IDFGEN_outputs/failed_indiv_101Loci_PreDup.txt", delim = "\t")
+
+#use join tools to remove any individuals from IDFGEN file that match those listed in the individuals to remove data frame
+#anti_join() return all rows from x where there are not matching values in y, keeping just columns from x.
+IDFGEN_filtered_1 <- anti_join(IDFGEN_input, dup.indiv.to.remove, by = c('IndividualName' = "Individual"))
+IDFGEN_filtered_2 <- anti_join(IDFGEN_filtered_1, failed.indiv.to.remove, by = c('IndividualName' = "Individual"))
+
+#now write for final formatting via IDFGEN
+write_delim(IDFGEN_filtered_2, "IDFGEN_inputs/LKG_IDFGEN_noDups_noFailedIndiv_101Loci.txt", delim = "\t")
+
+#Now call IDFGEN to create SNPPIT files for 101 panel
+#this will be the first prelim run to identify loci particularly susceptible to Mendelian Incompatible errors and which, therefore, may need to be removed before final analyses. 
+rm(list=ls())
+
+source("/Users/hnuetzel/OneDrive - Columbia River Inter-Tribal Fish Commission/LKG_2004.2019_Parentage_3Feb2021/IDFGEN/package/main.r", chdir = TRUE)
+getwd()
+library(tidyverse)
+
+#Import data
+readInData(inputFile = "IDFGEN_inputs/LKG_IDFGEN_noDups_noFailedIndiv_101Loci.txt", genotypeStartColumn = 14, popColumn = 1, sortBPs = F)
+
+#set up the 101 loci panel
+PBTPanel_101Loci <- c("Ots_100884_287",	"Ots_101554_407",	"Ots_101704_143",	"Ots_102414_395",	"Ots_102801_308",	"Ots_103122_180",	"Ots_104415_88",	"Ots_105105_613",	"Ots_105132_200",	"Ots_105385_421",	"Ots_105407_117",	"Ots_108735_302",	"Ots_109525_816",	"Ots_110064_383",	"Ots_110201_363",	"Ots_110495_380",	"Ots_110551_64",	"Ots_110689_218",	"Ots_112301_43",	"Ots_112419_131",	"Ots_112820_284",	"Ots_112876_371",	"Ots_113242_216",	"Ots_115987_325",	"Ots_117432_409",	"Ots_118205_61",	"Ots_118938_325",	"Ots_123921_111",	"Ots_124774_477",	"Ots_128757_61R",	"Ots_129170_683",	"Ots_129458_451",	"Ots_94857_232R",	"Ots_94903_99R",	"Ots_96500_180",	"Ots_96899_357R",	"Ots_ARNT",	"Ots_AsnRS_60",	"Ots_brp16_64",	"Ots_CD59_2",	"Ots_CirpA",	"Ots_cox1_241",	"Ots_crRAD16540_50",	"Ots_crRAD55400_59",	"Ots_crRAD57376_68",	"Ots_crRAD57687_34",	"Ots_E2_275",	"Ots_Est1363",	"Ots_Est740",	"Ots_ETIF1A",	"Ots_FGF6B_1",	"Ots_GCSH",	"Ots_GDH_81x",	"Ots_GPH_318",	"Ots_GTH2B_550",	"Ots_HMGB1_73",	"Ots_hsc71_3__488",	"Ots_HSP90B_100",	"Ots_IGF_I_1_76",	"Ots_Ikaros_250",	"Ots_IL8R_C8",	"Ots_mapK_3__309",	"Ots_mapKpr_151",	"Ots_MHC2",	"Ots_mybp_85",	"Ots_NFYB_147",	"Ots_nkef_192",	"Ots_NOD1",	"Ots_ntl_255",	"Ots_OTALDBINT1_SNP1",	"Ots_OTDESMIN19_SNP1",	"Ots_OTSTF1_SNP1",	"Ots_P53",	"Ots_parp3_286",	"Ots_pigh_105",	"Ots_pop5_96",	"Ots_ppie_245",	"Ots_Prl2",	"Ots_RAG3",	"Ots_redd1_187",	"Ots_S7_1",	"Ots_SClkF2R2_135",	"Ots_SWS1op_182",	"Ots_TAPBP",	"Ots_TGFB",	"Ots_Thio",	"Ots_TLR3",	"Ots_tpx2_125",	"Ots_txnip_321",	"Ots_u07_07_161",	"Ots_u07_17_135",	"Ots_u07_18_378",	"Ots_u07_25_325",	"Ots_u07_49_290",	"Ots_u1002_75",	"Ots_u211_85",	"Ots_u4_92",	"Ots_u6_75",	"Ots_unk526",	"Ots_vatf_251",	"Ots_ZR_575")
+
+summary(Populations)
+#check and make sure all failed individuals were removed first
+failed.indiv  <- findNoCalls(Populations, 10, PBTPanel_101Loci)
+#0 individuals so all good there
+
+#Ok now we are going to format for SNPPIT 
+#Since these are just preliminary runs to identify high Mendelian Incompatible Loci, just going to run the Adults as a representative sample
+#SNPPIT input 2020 Adults
+pbtParents_forAdults_2020 <- c(Adult_2015, Adult_2016, Adult_2017, Adult_2018, Juvenile_2015, Juvenile_2016)
+Kid_2020_Adult <- c(Adult_2020)
+
+dumpSNPPIT(pbtParents_forAdults_2020, Kid_2020_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2020_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+
+#SNPPIT input 2019 Adults
+pbtParents_forAdults_2019 <- c(Adult_2014, Adult_2015, Adult_2016, Adult_2017, Juvenile_2014, Juvenile_2015)
+Kid_2019_Adult <- c(Adult_2019)
+
+dumpSNPPIT(pbtParents_forAdults_2019, Kid_2019_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2019_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2018 Adults
+pbtParents_forAdults_2018 <- c(Adult_2013, Adult_2014, Adult_2015, Adult_2016, Juvenile_2013, Juvenile_2014)
+Kid_2018_Adult <- c(Adult_2018)
+
+dumpSNPPIT(pbtParents_forAdults_2018, Kid_2018_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2018_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2017 Adults
+pbtParents_forAdults_2017 <- c(Adult_2012, Adult_2013, Adult_2014, Adult_2015, Juvenile_2012, Juvenile_2013)
+Kid_2017_Adult <- c(Adult_2017)
+
+dumpSNPPIT(pbtParents_forAdults_2017, Kid_2017_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2017_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2016 Adults
+pbtParents_forAdults_2016 <- c(Adult_2011, Adult_2012, Adult_2013, Adult_2014, Juvenile_2011, Juvenile_2012)
+Kid_2016_Adult <- c(Adult_2016)
+
+dumpSNPPIT(pbtParents_forAdults_2016, Kid_2016_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2016_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2015 Adults
+pbtParents_forAdults_2015 <- c(Adult_2010, Adult_2011, Adult_2012, Adult_2013, Juvenile_2010, Juvenile_2011)
+Kid_2015_Adult <- c(Adult_2015)
+
+dumpSNPPIT(pbtParents_forAdults_2015, Kid_2015_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2015_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2014 Adults
+pbtParents_forAdults_2014 <- c(Adult_2009, Adult_2010, Adult_2011, Adult_2012, Juvenile_2009, Juvenile_2010)
+Kid_2014_Adult <- c(Adult_2014)
+
+dumpSNPPIT(pbtParents_forAdults_2014, Kid_2014_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2014_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2013 Adults
+pbtParents_forAdults_2013 <- c(Adult_2008, Adult_2009, Adult_2010, Adult_2011, Juvenile_2009)
+Kid_2013_Adult <- c(Adult_2013)
+
+dumpSNPPIT(pbtParents_forAdults_2013, Kid_2013_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2013_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2012 Adults
+pbtParents_forAdults_2012 <- c(Adult_2008, Adult_2009, Adult_2010)
+Kid_2012_Adult <- c(Adult_2012)
+
+dumpSNPPIT(pbtParents_forAdults_2012, Kid_2012_Adult, PBTPanel_101Loci, "SNPPIT_prelim_run_files/LKG_Adult_2012_PBT101_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+```
+

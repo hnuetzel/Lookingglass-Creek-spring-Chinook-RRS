@@ -1,0 +1,1315 @@
+---
+title: "KnownMaternityPaternity_FromSNPPIT"
+author: "Hayley Nuetzel"
+date: "8/17/2021"
+output: html_document
+---
+
+Now that we've filtered the SNPPIT trios and then checked each parent pair to ensure biologically plausible pairings (i.e., each parent is of different sex), we can use these assignments to create known maternity and paternity matrices. We can then supply these to COLONY to (hopefully) reduce computation time.
+
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+
+#first I want to just read in the finalized SNPPIT trios
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+
+#create a Collection year column so that we can tally assignments by collection
+final_snppit_tally <- final_snppit %>%
+  unite(., Collection, Kid_LifeHistoryStage, Kid_SampleYear, sep = "_", remove = FALSE) %>%
+  group_by(., Collection) %>%
+  tally()
+
+```
+
+
+
+```{r}
+#For 2012 adults
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2012 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2012")
+
+#read in Colony ID code file
+adults2012_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2012/LKG_2012Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2012_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2012/LKG_2012Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2012_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2012/LKG_2012Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2012, adults2012_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2012_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2012_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2012/Adults2012_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2012/Adults2012_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#2013 Adults 
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2013 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2013")
+
+#read in Colony ID code file
+adults2013_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2013/LKG_2013Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2013_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2013/LKG_2013Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2013_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2013/LKG_2013Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2013, adults2013_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2013_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2013_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2013/Adults2013_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2013/Adults2013_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2014 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2014 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2014")
+
+#read in Colony ID code file
+adults2014_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2014/LKG_2014Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2014_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2014/LKG_2014Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2014_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2014/LKG_2014Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2014, adults2014_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2014_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2014_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2014/Adults2014_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2014/Adults2014_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+```{r}
+#For 2015 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2015 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2015")
+
+#read in Colony ID code file
+adults2015_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2015/LKG_2015Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2015_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2015/LKG_2015Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2015_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2015/LKG_2015Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2015, adults2015_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2015_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2015_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2015/Adults2015_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2015/Adults2015_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+
+```{r}
+#For 2016 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2016 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2016")
+
+#read in Colony ID code file
+adults2016_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2016/LKG_2016Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2016_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2016/LKG_2016Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2016_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2016/LKG_2016Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2016, adults2016_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2016_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2016_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2016/Adults2016_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2016/Adults2016_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+
+```
+
+
+```{r}
+#For 2017 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2017 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2017")
+
+#read in Colony ID code file
+adults2017_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2017/LKG_2017Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2017_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2017/LKG_2017Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2017_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2017/LKG_2017Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2017, adults2017_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2017_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2017_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2017/Adults2017_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2017/Adults2017_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+
+```{r}
+#For 2018 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2018 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2018")
+
+#read in Colony ID code file
+adults2018_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2018/LKG_2018Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2018_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2018/LKG_2018Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2018_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2018/LKG_2018Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2018, adults2018_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2018_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2018_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2018/Adults2018_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2018/Adults2018_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+
+```{r}
+#For 2019 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2019 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2019")
+
+#read in Colony ID code file
+adults2019_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2019/LKG_2019Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2019_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2019/LKG_2019Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2019_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2019/LKG_2019Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2019, adults2019_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2019_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2019_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2019/Adults2019_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2019/Adults2019_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+
+```{r}
+#For 2020 adults
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Adults2020 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Adult" & Kid_SampleYear == "2020")
+
+#read in Colony ID code file
+adults2020_Pa_codes <- read_csv("COLONY2_Run_Files/Adults2020/LKG_2020Adults_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+adults2020_Ma_codes <- read_csv("COLONY2_Run_Files/Adults2020/LKG_2020Adults_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+adults2020_Kid_codes <- read_csv("COLONY2_Run_Files/Adults2020/LKG_2020Adults_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Adults2020, adults2020_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., adults2020_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., adults2020_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Adults2020/Adults2020_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Adults2020/Adults2020_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+
+```{r}
+#For 2009 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2009 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2009")
+
+#read in Colony ID code file
+juvs2009_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2009/LKG_2009Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2009_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2009/LKG_2009Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2009_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2009/LKG_2009Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2009, juvs2009_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2009_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2009_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2009/Juvs2009_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2009/Juvs2009_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2010 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2010 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2010")
+
+#read in Colony ID code file
+juvs2010_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2010/LKG_2010Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2010_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2010/LKG_2010Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2010_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2010/LKG_2010Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2010, juvs2010_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2010_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2010_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2010/Juvs2010_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2010/Juvs2010_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+```{r}
+#For 2011 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2011 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2011")
+
+#read in Colony ID code file
+juvs2011_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2011/LKG_2011Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2011_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2011/LKG_2011Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2011_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2011/LKG_2011Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2011, juvs2011_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2011_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2011_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2011/Juvs2011_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2011/Juvs2011_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2012 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2012 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2012")
+
+#read in Colony ID code file
+juvs2012_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2012/LKG_2012Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2012_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2012/LKG_2012Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2012_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2012/LKG_2012Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2012, juvs2012_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2012_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2012_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2012/Juvs2012_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2012/Juvs2012_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2013 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2013 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2013")
+
+#read in Colony ID code file
+juvs2013_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2013/LKG_2013Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2013_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2013/LKG_2013Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2013_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2013/LKG_2013Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2013, juvs2013_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2013_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2013_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2013/Juvs2013_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2013/Juvs2013_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2014 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2014 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2014")
+
+#read in Colony ID code file
+juvs2014_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2014/LKG_2014Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2014_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2014/LKG_2014Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2014_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2014/LKG_2014Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2014, juvs2014_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2014_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2014_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2014/Juvs2014_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2014/Juvs2014_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+```{r}
+#For 2015 juvs
+
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2015 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2015")
+
+#read in Colony ID code file
+juvs2015_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2015/LKG_2015Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2015_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2015/LKG_2015Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2015_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2015/LKG_2015Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2015, juvs2015_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2015_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2015_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2015/Juvs2015_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2015/Juvs2015_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2016 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2016 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2016")
+
+#read in Colony ID code file
+juvs2016_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2016/LKG_2016Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2016_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2016/LKG_2016Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2016_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2016/LKG_2016Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2016, juvs2016_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2016_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2016_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2016/Juvs2016_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2016/Juvs2016_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+```{r}
+#For 2017 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2017 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2017")
+
+#read in Colony ID code file
+juvs2017_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2017/LKG_2017Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2017_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2017/LKG_2017Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2017_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2017/LKG_2017Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2017, juvs2017_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2017_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2017_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2017/Juvs2017_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2017/Juvs2017_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+```{r}
+#For 2018 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2018 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2018")
+
+#read in Colony ID code file
+juvs2018_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2018/LKG_2018Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2018_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2018/LKG_2018Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2018_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2018/LKG_2018Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2018, juvs2018_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2018_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2018_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2018/Juvs2018_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2018/Juvs2018_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+
+
+```{r}
+#For 2019 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2019 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2019")
+
+#read in Colony ID code file
+juvs2019_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2019/LKG_2019Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2019_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2019/LKG_2019Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2019_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2019/LKG_2019Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2019, juvs2019_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2019_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2019_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2019/Juvs2019_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2019/Juvs2019_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+
+```
+
+
+```{r}
+#For 2020 juvs
+rm(list = ls())
+
+#first read in the finalized SNPPIT trio
+final_snppit <- read_csv("SNPPIT_run_files/FINAL_AllCollections_AcceptedTrios.csv", col_types = cols(.default = "c"))
+
+#now for creating known maternity/paternity subset the collection of relevance 
+final_trios_Juvs2020 <- final_snppit %>%
+  select(., FDR, Kid, Pa, Ma, Kid_LifeHistoryStage, Kid_SampleYear, Pa_LifeHistoryStage, Pa_SampleYear, Ma_LifeHistoryStage, Ma_SampleYear) %>%
+  filter(., Kid_LifeHistoryStage == "Juvenile" & Kid_SampleYear == "2020")
+
+#read in Colony ID code file
+juvs2020_Pa_codes <- read_csv("COLONY2_Run_Files/Juvs2020/LKG_2020Juvs_IDcodes.csv") %>%
+  filter(., grepl("Pa_", COLONY_ID))
+
+juvs2020_Ma_codes <- read_csv("COLONY2_Run_Files/Juvs2020/LKG_2020Juvs_IDcodes.csv") %>%
+  filter(., grepl("Ma_", COLONY_ID))
+
+juvs2020_Kid_codes <- read_csv("COLONY2_Run_Files/Juvs2020/LKG_2020Juvs_IDcodes.csv") %>%
+  filter(., grepl("Kid_", COLONY_ID))
+
+#combine 
+#by kid first
+combo <- left_join(final_trios_Juvs2020, juvs2020_Kid_codes, by = c("Kid" = "Progeny_ID")) %>%
+  select(., -Kid) %>%
+  relocate(., COLONY_ID, .after = FDR) %>%
+  dplyr::rename(., Kid = COLONY_ID) %>%
+  left_join(., juvs2020_Pa_codes, by = c("Pa" = "Progeny_ID")) %>%
+  select(., -Pa) %>%
+  relocate(., COLONY_ID, .after = Kid) %>%
+  dplyr::rename(., Pa = COLONY_ID) %>%
+  left_join(., juvs2020_Ma_codes, by = c("Ma" = "Progeny_ID")) %>%
+  select(., -Ma) %>%
+  relocate(., COLONY_ID, .after = Pa) %>%
+  dplyr::rename(.,  Ma = COLONY_ID)
+
+#now just want to look at Pa assignments and reshape for COLONY
+Paternity <- select(combo, Kid, Pa) %>%
+  group_by(Pa) %>%
+  dplyr::mutate(., count = row_number())
+
+#and format
+pat_format <- Paternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(pat_format, "COLONY2_Run_Files/Juvs2020/Juvs2020_SNPPIT_KnownPaternity.csv", na = "", col_names = FALSE)
+
+##and then do the same for maternity
+Maternity <- select(combo, Kid, Ma) %>%
+  group_by(Ma) %>%
+  dplyr::mutate(., count = row_number())
+
+mat_format <- Maternity %>%
+  pivot_wider(names_from = count, values_from = Kid)
+
+write_csv(mat_format, "COLONY2_Run_Files/Juvs2020/Juvs2020_SNPPIT_KnownMaternity.csv", na = "", col_names = FALSE)
+```
+

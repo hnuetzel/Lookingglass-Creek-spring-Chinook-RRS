@@ -1,0 +1,349 @@
+---
+title: "Step3_Prep_Final_SNPPIT_COLONY_input"
+author: "Hayley Nuetzel"
+date: "8/13/2021"
+output: html_document
+---
+Now that we have our finalized panel of 93 loci given hi missers, MAF, base pair switches and medelian incompatabilities, will use IDFGEN to create final SNPPIT run files. I will also than create COLONY run files from these SNPPIT files by hand in excel, since the IDFGEN function to create COLONY files doesn't work all that well. 
+
+First we use IDFGEN to identify failures and then rubias to find duplicates given the panel of 93 markers. Then use this updated IDFGEN input to create the SNPPIT and COLONY run files. 
+
+```{r}
+
+rm(list=ls())
+#ok now lets use IDFGEN to create updated SNPPIT input files
+source("/Users/hnuetzel/OneDrive - Columbia River Inter-Tribal Fish Commission/LKG_2004.2019_Parentage_3Feb2021/IDFGEN/package/main.r", chdir = TRUE)
+getwd()
+library(tidyverse)
+
+#Import data
+readInData(inputFile = "IDFGEN_inputs/LKG_IDFGEN_Broodstock_NaturalSpawners_Juvs_input.txt", genotypeStartColumn = 14, popColumn = 1, sortBPs = F)
+
+#set up the 93 loci panel - dropped hi missers, base pair switches, MAF and mendelian incompatible
+PBTPanel_93Loci <- c("Ots_100884_287",	"Ots_101554_407",	"Ots_101704_143",	"Ots_102414_395",	"Ots_102801_308",	"Ots_103122_180",	"Ots_104415_88",	"Ots_105105_613",	"Ots_105132_200",	"Ots_105385_421",	"Ots_105407_117",	"Ots_107806_821",	"Ots_108820_336",	"Ots_109525_816",	"Ots_110064_383",	"Ots_110201_363",	"Ots_110495_380",	"Ots_110551_64",	"Ots_110689_218",	"Ots_112301_43",	"Ots_112419_131",	"Ots_112820_284",	"Ots_112876_371",	"Ots_113242_216",	"Ots_115987_325",	"Ots_117432_409",	"Ots_118205_61",	"Ots_118938_325",	"Ots_123921_111",	"Ots_124774_477",	"Ots_128757_61R",	"Ots_129458_451",	"Ots_94857_232R",	"Ots_94903_99R",	"Ots_96500_180",	"Ots_96899_357R",	"Ots_ARNT",	"Ots_arp_436",	"Ots_AsnRS_60",	"Ots_brp16_64",	"Ots_CD59_2",	"Ots_CirpA",	"Ots_cox1_241",	"Ots_crRAD17527_58",	"Ots_E2_275",	"Ots_Est740",	"Ots_ETIF1A",	"Ots_FGF6B_1",	"Ots_GCSH",	"Ots_GDH_81x",	"Ots_GPH_318",	"Ots_GTH2B_550",	"Ots_HMGB1_73",	"Ots_hsc71_3__488",	"Ots_HSP90B_100",	"Ots_IGF_I_1_76",	"Ots_IL8R_C8",	"Ots_mapK_3__309",	"Ots_mapKpr_151",	"Ots_MHC2",	"Ots_mybp_85",	"Ots_NFYB_147",	"Ots_nkef_192",	"Ots_NOD1",	"Ots_ntl_255",	"Ots_OTDESMIN19_SNP1",	"Ots_OTSTF1_SNP1",	"Ots_P53",	"Ots_parp3_286",	"Ots_pop5_96",	"Ots_ppie_245",	"Ots_Prl2",	"Ots_RAG3",	"Ots_redd1_187",	"Ots_S7_1",	"Ots_SClkF2R2_135",	"Ots_SWS1op_182",	"Ots_TAPBP",	"Ots_TGFB",	"Ots_Thio",	"Ots_TLR3",	"Ots_tpx2_125",	"Ots_txnip_321",	"Ots_u07_07_161",	"Ots_u07_17_135",	"Ots_u07_18_378",	"Ots_u07_25_325",	"Ots_u07_49_290",	"Ots_u1002_75",	"Ots_u211_85",	"Ots_u6_75",	"Ots_unk526",	"Ots_vatf_251")
+
+summary(Populations)
+#now to check for failures at ~10% of 93 loci
+failed.indiv  <- findNoCalls(Populations, 9, PBTPanel_93Loci)
+#852 individuals 
+dumpTable(failed.indiv, filename = "IDFGEN_outputs/failed_indiv_93Loci.txt")
+removeIndividuals(failed.indiv)
+#*** 852 total individuals have been removed *** 
+summary(Populations)
+
+dumpBaseline(Populations, markers = PBTPanel_93Loci, fileType = "gsi_sim", filename = "IDFGEN_outputs/LKG_gsi_sim_93SNP.txt")
+```
+
+Now we're going to use rubias to identify duplicates with the 93 SNP panel
+
+```{r}
+rm(list = ls())
+library(rubias)
+#read in LKG gsi_sim formatted file and convert to rubias format
+#I simply duplicated the collection column here to create repunits to fulfill the "reference" file format requirments
+LKG_rubias <- read_gsi_sim("IDFGEN_outputs/LKG_gsi_sim_93SNP.txt", "reference", repunits = NULL) %>%
+  mutate(., repunit_1 = collection) %>%
+  select(., 1, 191, 3, 4, 5:190) %>%
+  dplyr::rename(., repunit = repunit_1)
+
+#Rubias manual notes that repunit and collection column must be character types, while the locus columns must also be character or integer
+#check column types of locus columns and coerce all columns to be character type accordingly
+head(LKG_rubias)
+LKG_rubias_1 <- LKG_rubias %>%
+  mutate_if(is.double,as.character)
+
+
+#now look for duplicates within the parent baseline
+matching_pairs <- close_matching_samples(D = LKG_rubias_1,
+                                         gen_start_col = 5, 
+                                         min_frac_non_miss = 0.85, 
+                                         min_frac_matching = 0.94)
+
+#write to csv
+write_csv(matching_pairs, "Rubias_DuplicateAnalysis/LKG_match_indiv_93SNP_panel.csv")
+
+
+######### Use Connected Components to Process Duplicate Samples ############
+#Now the duplicate function in rubias only compares individuals in a pairwise fashion, so you could run into a situation like this: 
+#A = B, and A = C, therefore A = B = C. 
+#in order connect these sort of duplicate samples, we will use the BiocManager tool
+
+#modify matching_pairs dataframe so that can be read in this analysis
+LKG_dup <- matching_pairs %>%
+  select(., indiv_1, collection_1, indiv_2, collection_2, num_non_miss, num_match) %>%
+  mutate(., Proportion = num_match/num_non_miss) %>%
+  unite(., Sample1, indiv_1, collection_1, sep = ".", remove = TRUE) %>%
+  unite(., Sample2, indiv_2, collection_2, sep = ".", remove = TRUE)
+
+#most of the duplicates found have a score of "1.0" meaning they matched on all compared loci. #and were compared at a minimum of 89 loci
+
+#load Bioconductor
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+#run to see which version of BiocManager is in use
+BiocManager::version()
+#update version appropriately
+BiocManager::install(version = "3.10")
+BiocManager::install("graph")
+BiocManager::install("RBGL")
+BiocManager::install("gRbase")
+
+library(gRbase)
+library(RBGL)
+library(tidyverse)
+
+#use connected components to create a graphical representation of duplicates, forming clusters of individuals found in multiple pariwise comparisons
+#Fair warning: Eric Anderson wrote this function for me, so my ability to troubleshoot this bit of code is marginal at best 
+edgelist <- lapply(1:nrow(LKG_dup), function(x) c(LKG_dup$Sample1[x], LKG_dup$Sample2[x]))
+gR <- gRbase::ug(edgelist)
+CnC <- graph::connComp(gR)  # these are the connected components
+names(CnC) <- 1:length(CnC)
+
+clust_df <- lapply(CnC, function(x) tibble(ID = x)) %>% bind_rows(.id = "Cluster") 
+
+clust_df_1 <- clust_df %>%
+  group_by(Cluster) %>% 
+  add_tally() %>%
+  dplyr::rename(num_in_clust = n) %>%
+  arrange(desc(num_in_clust))
+
+#now want to reformat so that data frame is organized in wide format (i.e. more columns and less rows) rather than long format
+#First separate indiv ID from collection name 
+clust_df_1 <- separate(clust_df_1, ID, c("Indiv", "Collection"), sep = "[.]")
+
+#now pivot wider
+clust_df_2 <- 
+  dplyr::group_by(clust_df_1, Cluster) %>% 
+  dplyr::mutate(count = row_number()) %>%
+  pivot_wider(names_from = count, values_from = c(Indiv, Collection))
+
+#restructure so collection_1 follows indiv_1 and so on
+clust_df_3 <- dplyr::select(clust_df_2, Cluster, num_in_clust, Indiv_1, Collection_1, Indiv_2, Collection_2, Indiv_3, Collection_3)
+
+#want to see if there are any matching pairs that involve individuals from different collections
+# can easily check by eye that the 6 clusters involving 3 individuals are all from the same collection year
+#So can just look for those that are different between collection1 and collection2
+dups_diff_collect <- filter(clust_df_3, Collection_1 != Collection_2)
+#Have 9 occurences of this. Interestingly, 7 appear to be individuals that were sampled as juveniles and then again as adults 2-3 years later! 
+#one appears to be a juvenile that was sampled in 2015 and again in 2016
+#and the last appears to be a juvenile precocial from 2020 that was sampled as a post-spawn carcass!
+
+#Ok now back to formatting the list of individuals to remove
+#for the duplicates where individuals are only from the same collection, we can just keep one individual per cluster
+#this way of filtering will also include those clusters that have 3 individuals
+dups_same_clust <- filter(clust_df_3, Collection_1 == Collection_2)
+
+indiv_to_remove_1 <- select(dups_same_clust, Cluster, Indiv_2, Collection_2, Indiv_3, Collection_3) %>%
+  unite(., "Individual_2", Indiv_2:Collection_2, sep = ":") %>%
+  unite(., "Individual_3", Indiv_3:Collection_3, sep = ":") %>%
+  pivot_longer(., -Cluster, names_to = "Indiv_No", values_to = "Indiv_ID") %>%
+  select(., Cluster, Indiv_ID) %>%
+  filter(., Indiv_ID != "NA:NA") %>%
+  separate(., Indiv_ID, c("Individual", "Population"), sep = ":") %>%
+  select(., Population, Individual)
+
+#for the dups_diff_collect df, we can generally keep all individuals on that list because the juveniles are never going to be run against themselves as potential parent (i.e., a juvenile from 2011 will not be run against a parent pool of adults from 2014)
+#however, there is one cluster from which we only want to grab one individual representative - cluster 662 - the two juvenile matches
+indiv_to_remove_2 <- filter(dups_diff_collect, Cluster == "662") %>%
+  select(., Cluster, Collection_2, Indiv_2) %>%
+  dplyr::rename(., Population = Collection_2, Individual = Indiv_2)
+
+#combine the two
+indiv_to_remove <- bind_rows(indiv_to_remove_1, indiv_to_remove_2)
+
+#write to csv
+write_csv(indiv_to_remove, "Rubias_DuplicateAnalysis/LKG_dup_indiv_to_remove_93Loci.csv")
+
+```
+
+Now can filter out the failures and duplicates given 93 Loci from the IDFGEN input and use IDFGEN to create those final SNPPIT run files. 
+
+```{r}
+
+IDFGEN_input <- read_delim("IDFGEN_inputs/LKG_IDFGEN_Broodstock_NaturalSpawners_Juvs_input.txt", delim = "\t", col_types = cols(.default = "c"))
+dup.indiv.to.remove <- read_csv("Rubias_DuplicateAnalysis/LKG_dup_indiv_to_remove_93Loci.csv")
+failed.indiv.to.remove <- read_delim("IDFGEN_outputs/failed_indiv_93Loci.txt", delim = "\t")
+
+#use join tools to remove any individuals from IDFGEN file that match those listed in the individuals to remove data frame
+#anti_join() return all rows from x where there are not matching values in y, keeping just columns from x.
+IDFGEN_filtered_1 <- anti_join(IDFGEN_input, dup.indiv.to.remove, by = c('IndividualName' = "Individual"))
+IDFGEN_filtered_2 <- anti_join(IDFGEN_filtered_1, failed.indiv.to.remove, by = c('IndividualName' = "Individual"))
+
+#now write for final formatting via IDFGEN
+write_delim(IDFGEN_filtered_2, "IDFGEN_inputs/LKG_IDFGEN_noDups_noFailedIndiv_93Loci.txt", delim = "\t")
+
+#ok now lets use IDFGEN to create updated SNPPIT input files
+rm(list = ls())
+source("/Users/hnuetzel/OneDrive - Columbia River Inter-Tribal Fish Commission/LKG_2004.2019_Parentage_3Feb2021/IDFGEN/package/main.r", chdir = TRUE)
+getwd()
+library(tidyverse)
+
+#Import data
+readInData(inputFile = "IDFGEN_inputs/LKG_IDFGEN_noDups_noFailedIndiv_93Loci.txt", genotypeStartColumn = 14, popColumn = 1, sortBPs = F)
+
+#set up the 93 loci panel - dropped hi missers, base pair switches, MAF and mendelian incompatible
+PBTPanel_93Loci <- c("Ots_100884_287",	"Ots_101554_407",	"Ots_101704_143",	"Ots_102414_395",	"Ots_102801_308",	"Ots_103122_180",	"Ots_104415_88",	"Ots_105105_613",	"Ots_105132_200",	"Ots_105385_421",	"Ots_105407_117",	"Ots_107806_821",	"Ots_108820_336",	"Ots_109525_816",	"Ots_110064_383",	"Ots_110201_363",	"Ots_110495_380",	"Ots_110551_64",	"Ots_110689_218",	"Ots_112301_43",	"Ots_112419_131",	"Ots_112820_284",	"Ots_112876_371",	"Ots_113242_216",	"Ots_115987_325",	"Ots_117432_409",	"Ots_118205_61",	"Ots_118938_325",	"Ots_123921_111",	"Ots_124774_477",	"Ots_128757_61R",	"Ots_129458_451",	"Ots_94857_232R",	"Ots_94903_99R",	"Ots_96500_180",	"Ots_96899_357R",	"Ots_ARNT",	"Ots_arp_436",	"Ots_AsnRS_60",	"Ots_brp16_64",	"Ots_CD59_2",	"Ots_CirpA",	"Ots_cox1_241",	"Ots_crRAD17527_58",	"Ots_E2_275",	"Ots_Est740",	"Ots_ETIF1A",	"Ots_FGF6B_1",	"Ots_GCSH",	"Ots_GDH_81x",	"Ots_GPH_318",	"Ots_GTH2B_550",	"Ots_HMGB1_73",	"Ots_hsc71_3__488",	"Ots_HSP90B_100",	"Ots_IGF_I_1_76",	"Ots_IL8R_C8",	"Ots_mapK_3__309",	"Ots_mapKpr_151",	"Ots_MHC2",	"Ots_mybp_85",	"Ots_NFYB_147",	"Ots_nkef_192",	"Ots_NOD1",	"Ots_ntl_255",	"Ots_OTDESMIN19_SNP1",	"Ots_OTSTF1_SNP1",	"Ots_P53",	"Ots_parp3_286",	"Ots_pop5_96",	"Ots_ppie_245",	"Ots_Prl2",	"Ots_RAG3",	"Ots_redd1_187",	"Ots_S7_1",	"Ots_SClkF2R2_135",	"Ots_SWS1op_182",	"Ots_TAPBP",	"Ots_TGFB",	"Ots_Thio",	"Ots_TLR3",	"Ots_tpx2_125",	"Ots_txnip_321",	"Ots_u07_07_161",	"Ots_u07_17_135",	"Ots_u07_18_378",	"Ots_u07_25_325",	"Ots_u07_49_290",	"Ots_u1002_75",	"Ots_u211_85",	"Ots_u6_75",	"Ots_unk526",	"Ots_vatf_251")
+
+summary(Populations)
+#now to check for failures at ~10% of 93 loci
+failed.indiv  <- findNoCalls(Populations, 9, PBTPanel_93Loci)
+#0 individuals as expected
+
+#Ok now we are going to format for SNPPIT 
+#SNPPIT input 2020 Adults
+pbtParents_forAdults_2020 <- c(Adult_2015, Adult_2016, Adult_2017, Adult_2018, Juvenile_2015, Juvenile_2016)
+Kid_2020_Adult <- c(Adult_2020)
+
+dumpSNPPIT(pbtParents_forAdults_2020, Kid_2020_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2020_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2019 Adults
+pbtParents_forAdults_2019 <- c(Adult_2014, Adult_2015, Adult_2016, Adult_2017, Juvenile_2014, Juvenile_2015)
+Kid_2019_Adult <- c(Adult_2019)
+
+dumpSNPPIT(pbtParents_forAdults_2019, Kid_2019_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2019_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2018 Adults
+pbtParents_forAdults_2018 <- c(Adult_2013, Adult_2014, Adult_2015, Adult_2016, Juvenile_2013, Juvenile_2014)
+Kid_2018_Adult <- c(Adult_2018)
+
+dumpSNPPIT(pbtParents_forAdults_2018, Kid_2018_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2018_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2017 Adults
+pbtParents_forAdults_2017 <- c(Adult_2012, Adult_2013, Adult_2014, Adult_2015, Juvenile_2012, Juvenile_2013)
+Kid_2017_Adult <- c(Adult_2017)
+
+dumpSNPPIT(pbtParents_forAdults_2017, Kid_2017_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2017_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2016 Adults
+pbtParents_forAdults_2016 <- c(Adult_2011, Adult_2012, Adult_2013, Adult_2014, Juvenile_2011, Juvenile_2012)
+Kid_2016_Adult <- c(Adult_2016)
+
+dumpSNPPIT(pbtParents_forAdults_2016, Kid_2016_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2016_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2015 Adults
+pbtParents_forAdults_2015 <- c(Adult_2010, Adult_2011, Adult_2012, Adult_2013, Juvenile_2010, Juvenile_2011)
+Kid_2015_Adult <- c(Adult_2015)
+
+dumpSNPPIT(pbtParents_forAdults_2015, Kid_2015_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2015_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2014 Adults
+pbtParents_forAdults_2014 <- c(Adult_2009, Adult_2010, Adult_2011, Adult_2012, Juvenile_2009, Juvenile_2010)
+Kid_2014_Adult <- c(Adult_2014)
+
+dumpSNPPIT(pbtParents_forAdults_2014, Kid_2014_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2014_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2013 Adults
+pbtParents_forAdults_2013 <- c(Adult_2008, Adult_2009, Adult_2010, Adult_2011, Juvenile_2009)
+Kid_2013_Adult <- c(Adult_2013)
+
+dumpSNPPIT(pbtParents_forAdults_2013, Kid_2013_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2013_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2012 Adults
+pbtParents_forAdults_2012 <- c(Adult_2008, Adult_2009, Adult_2010)
+Kid_2012_Adult <- c(Adult_2012)
+
+dumpSNPPIT(pbtParents_forAdults_2012, Kid_2012_Adult, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Adult_2012_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+
+#SNPPIT input 2020 Juveniles
+pbtParents_forJuvs_2020 <- c(Adult_2017, Adult_2018, Adult_2019, Juvenile_2017)
+Kid_2020_Juvs <- c(Juvenile_2020)
+
+dumpSNPPIT(pbtParents_forJuvs_2020, Kid_2020_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2020_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2019 Juveniles
+pbtParents_forJuvs_2019 <- c(Adult_2016, Adult_2017, Adult_2018, Juvenile_2016)
+Kid_2019_Juvs <- c(Juvenile_2019)
+
+dumpSNPPIT(pbtParents_forJuvs_2019, Kid_2019_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2019_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2018 Juveniles
+pbtParents_forJuvs_2018 <- c(Adult_2015, Adult_2016, Adult_2017, Juvenile_2015)
+Kid_2018_Juvs <- c(Juvenile_2018)
+
+dumpSNPPIT(pbtParents_forJuvs_2018, Kid_2018_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2018_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2017 Juveniles
+pbtParents_forJuvs_2017 <- c(Adult_2014, Adult_2015, Adult_2016, Juvenile_2014)
+Kid_2017_Juvs <- c(Juvenile_2017)
+
+dumpSNPPIT(pbtParents_forJuvs_2017, Kid_2017_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2017_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2016 Juveniles
+pbtParents_forJuvs_2016 <- c(Adult_2013, Adult_2014, Adult_2015, Juvenile_2013)
+Kid_2016_Juvs <- c(Juvenile_2016)
+
+dumpSNPPIT(pbtParents_forJuvs_2016, Kid_2016_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2016_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2015 Juveniles
+pbtParents_forJuvs_2015 <- c(Adult_2012, Adult_2013, Adult_2014, Juvenile_2012)
+Kid_2015_Juvs <- c(Juvenile_2015)
+
+dumpSNPPIT(pbtParents_forJuvs_2015, Kid_2015_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2015_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2014 Juveniles
+pbtParents_forJuvs_2014 <- c(Adult_2011, Adult_2012, Adult_2013, Juvenile_2011)
+Kid_2014_Juvs <- c(Juvenile_2014)
+
+dumpSNPPIT(pbtParents_forJuvs_2014, Kid_2014_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2014_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2013 Juveniles
+pbtParents_forJuvs_2013 <- c(Adult_2010, Adult_2011, Adult_2012, Juvenile_2010)
+Kid_2013_Juvs <- c(Juvenile_2013)
+
+dumpSNPPIT(pbtParents_forJuvs_2013, Kid_2013_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2013_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2012 Juveniles
+pbtParents_forJuvs_2012 <- c(Adult_2009, Adult_2010, Adult_2011, Juvenile_2009)
+Kid_2012_Juvs <- c(Juvenile_2012)
+
+dumpSNPPIT(pbtParents_forJuvs_2012, Kid_2012_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2012_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2011 Juveniles
+pbtParents_forJuvs_2011 <- c(Adult_2008, Adult_2009, Adult_2010, Juvenile_2008)
+Kid_2011_Juvs <- c(Juvenile_2011)
+
+dumpSNPPIT(pbtParents_forJuvs_2011, Kid_2011_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2011_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2010 Juveniles
+pbtParents_forJuvs_2010 <- c(Adult_2008, Adult_2009)
+Kid_2010_Juvs <- c(Juvenile_2010)
+
+dumpSNPPIT(pbtParents_forJuvs_2010, Kid_2010_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2010_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+#SNPPIT input 2009 Juveniles
+pbtParents_forJuvs_2009 <- c(Adult_2008)
+Kid_2009_Juvs <- c(Juvenile_2009)
+
+dumpSNPPIT(pbtParents_forJuvs_2009, Kid_2009_Juvs, PBTPanel_93Loci, "SNPPIT_run_files/LKG_Juvs_2009_PBT93_SNPPIT_input.txt", errorDefaultValue  = .005, POPCOLUMN_REPRO_YEARS = "Date.Year")
+
+```
+
+
+#create some summary files for individuals/dispositions analyzed
+```{r}
+rm(list = ls())
+library(tidyverse)
+
+IDFGEN_no_dups <- read_delim("IDFGEN_inputs/LKG_IDFGEN_noDups.txt", delim = "\t", col_types = cols(.default = "c"))
+failed.indiv.to.remove <- read_delim("IDFGEN_outputs/failed_indiv_93Loci.txt", delim = "\t")
+IDFGEN_filtered <- anti_join(IDFGEN_no_dups, failed.indiv.to.remove, by = c('IndividualName' = "Individual"))
+
+
+#see what dispositions/origin combinations are present in the dataset
+Meta_types <- IDFGEN_filtered %>%
+  group_by(., Collection, Analytical_Disposition, Analytical_Origin) %>%
+  tally()
+write_csv(Meta_types, "Summary Files/Tally_byCollection_Disposition_Origin_analyzed.csv")
+
+#also summ by origin
+Meta_origin <- IDFGEN_filtered %>%
+  group_by(., Collection, Analytical_Origin) %>%
+  tally()
+
+write_csv(Meta_origin, "Summary Files/Tally_byCollection_Origin_analyzed.csv")
+
+
+
+```
+

@@ -1,0 +1,944 @@
+---
+title: "Step9_Formatting_assignments_for_GLM"
+author: "Hayley Nuetzel"
+date: "9/16/2021"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+
+#prep input file for GLM analysis
+#juvenile assignmnets first
+library(tidyverse)
+library(lubridate)
+
+#read in finalized parentage assign file with cross type and parental spawn location
+#remember the dups and failures have already been removed
+#ultimately will want to filter out all those that are designated as Broodstock or spawning below weir since we are interested in production that occurred in the stream above the weir
+par_assign <- read_csv("Templates_for_RRS_script/GLM_Lookingglass_ParentCrossType_Input.csv", col_types = cols(.default = "c"))
+
+#first we can update the final sex for those individuals that have "?" and which were found as parents
+sex_updates <- par_assign %>%
+  filter(., Final_Sex == "?") %>%
+  filter(., No.Offspring > 0) %>%
+  dplyr::select(., CRITFC_ID)
+
+par_assign_M_update <- left_join(sex_updates, par_assign, by = c("CRITFC_ID" = "Pa")) %>%
+  distinct(., CRITFC_ID, .keep_all = TRUE) %>%
+  filter(., CRITFC_ID.y != "NA") %>% #drops the individuals on sex update list that are female
+  dplyr::select(., CRITFC_ID, Pa_Final_Sex) %>%
+  mutate(., final_sex = ifelse(Pa_Final_Sex == 'M', 'M', '?')) %>%
+  dplyr::select(-Pa_Final_Sex)
+
+par_assign_F_update <- left_join(sex_updates, par_assign, by = c("CRITFC_ID" = "Ma")) %>%
+  distinct(., CRITFC_ID, .keep_all = TRUE) %>%
+  filter(., CRITFC_ID.y != "NA") %>% #drops the individuals on sex update list that are male
+  dplyr::select(., CRITFC_ID, Ma_Final_Sex) %>%
+  mutate(., final_sex = ifelse(Ma_Final_Sex == 'F', 'F', '?')) %>%
+  dplyr::select(-Ma_Final_Sex)
+
+individ_sex_to_update <- bind_rows(par_assign_M_update, par_assign_F_update)
+
+par_assign_update <- left_join(par_assign, individ_sex_to_update, by = "CRITFC_ID") %>%
+  mutate(., FinalSex_Update = ifelse(is.na(final_sex), Final_Sex, final_sex)) %>%
+  relocate(., FinalSex_Update, .after = Final_Sex) %>%
+  select(., -Final_Sex, -final_sex) %>%
+  rename(., Final_Sex = FinalSex_Update)
+
+#we should also update disposition if found as a parent
+disposition_update <- par_assign_update %>%
+  filter(., No.Offspring > 0) %>%
+  dplyr::select(., CRITFC_ID)
+
+par_assign_Pa_dis_update <- left_join(disposition_update, par_assign_update, by = c("CRITFC_ID" = "Pa")) %>%
+  distinct(., CRITFC_ID, .keep_all = TRUE) %>%
+  filter(., CRITFC_ID.y != "NA") %>% #drops the individuals on sex update list that are female
+  dplyr::select(., CRITFC_ID, Pa_Disposition) %>%
+  rename(., Disposition_new = Pa_Disposition)
+
+par_assign_Ma_dis_update <- left_join(disposition_update, par_assign_update, by = c("CRITFC_ID" = "Ma")) %>%
+  distinct(., CRITFC_ID, .keep_all = TRUE) %>%
+  filter(., CRITFC_ID.y != "NA") %>% #drops the individuals on sex update list that are male
+  dplyr::select(., CRITFC_ID, Ma_Disposition) %>%
+  rename(., Disposition_new = Ma_Disposition)
+
+individ_dis_to_update <- bind_rows(par_assign_Pa_dis_update, par_assign_Ma_dis_update)
+
+par_assign_update_1 <- left_join(par_assign_update, individ_dis_to_update, by = "CRITFC_ID") %>%
+  mutate(., Final_Dis_Update = ifelse(is.na(Disposition_new), Disposition, Disposition_new)) %>%
+  relocate(., Final_Dis_Update, .after = Disposition) %>%
+  select(., -Disposition_new, -Disposition) %>%
+  rename(., Disposition = Final_Dis_Update)
+
+#we also want to default to using ParentageOrigin where inferred 
+#purposefully wrote "Unk" for those assignments where parent data and offspring field metadata didn't agree so they wouldn't be counted towards any individuals total offs count (i.e., called HOR in field but assigned a single naturally spawning parent)
+#can fill any individuals that have "NA" parentage origin with field origin because they weren't assigned parents
+par_assign_update_2 <- par_assign_update_1 %>%
+  mutate(., origin_combo = ifelse(is.na(ParentageOrigin), Origin, ParentageOrigin)) %>%
+  relocate(., origin_combo, .after = Origin)
+
+#save this cleaned up input for later
+save(par_assign_update_2, file = 'GLM Files/par_assign_updated.Rdata')
+
+#see the different parental_spawn locations
+spawn_locations <- par_assign_update_2 %>%
+  group_by(Parental_Spawn_Location) %>%
+  tally()
+	
+#Parental_Spawn_Location n
+#AboveWeir	4584
+#AboveWeir_SingleParent	811
+#BelowWeir	10
+#BelowWeir_SingleParent	25
+#Hatchery	3370
+#LikelyAboveWeir	48
+#LikelyNatural_SingleParent	3
+#NA	3780
+
+#Ok now we are going to focus only on those individuals assigned NOR or Unk origin juvenile offspring 
+#filter by life stage and origin
+#and only want to include above weir spawners (if only filter for NOR/Unk juvenile offspring, might get below weir spawners)
+juvs <- par_assign_update_2 %>% 
+  filter(., LifeHistoryStage == "Juvenile") %>%
+  filter(., origin_combo == "NOR" | origin_combo == "Unk") %>%
+  filter(., Parental_Spawn_Location == "AboveWeir" | Parental_Spawn_Location == "AboveWeir_SingleParent" | Parental_Spawn_Location == "LikelyAboveWeir" | Parental_Spawn_Location == "LikelyNatural_SingleParent")
+
+#and from these juvenile assignments we want a list of the parents and how many times they were assigned as parents to juveniles
+juvs_Pa <- dplyr::select(juvs, Pa) %>%
+  filter(., Pa != "0") %>%
+  dplyr::rename(., Parent = Pa) %>%
+  group_by(., Parent) %>%
+  tally()
+
+juvs_Ma <- dplyr::select(juvs, Ma) %>%
+  filter(., Ma != "0") %>%
+  dplyr::rename(., Parent = Ma) %>%
+  group_by(., Parent) %>%
+  tally()
+
+juvs_parents <- bind_rows(juvs_Pa, juvs_Ma) %>%
+  dplyr::rename(., No.Juv_offspring = n) 
+
+#join this juv_parents df back to the par_assign metadata and parse down to the info needed
+juv_parents_meta <- left_join(juvs_parents, par_assign_update_2, by = c("Parent" = "CRITFC_ID")) %>%
+  dplyr::select(., CRITFC_ID = Parent, No.Juv_offspring, Disposition, origin_combo, SampleYear, Date, sample_month, Location, ForkLength, FinClips, Final_Sex) 
+
+#Now again since we're only interested in those that spawned above the weir, but we may have some Carcass.Below.Weir individuals if they were identified as having spawned with a Passed.Upstream individual (suggesting the carcass fell back over the weir post spawn) 
+dis <- group_by(juv_parents_meta, Disposition) %>%
+  tally()
+#we have the following: 
+#Disposition                    n
+#1 Broodstock.PassedUpstream      3
+#2 Carcass.Above.Weir            14
+#3 Carcass.And.PassedUpstream    13
+#4 Carcass.Below.Weir            11
+#5 Passed.Upstream             1873
+
+#confirmed in the "juvs" dataframe that all Carcass.Below.Weir individuals paired with an above stream spawner, so we will leave them 
+
+#format as appropriate
+juv_parents_meta_1 <- juv_parents_meta %>%
+  dplyr::select(., sex = Final_Sex, id = CRITFC_ID, year = SampleYear, origin = origin_combo, length = ForkLength, date = Date, month = sample_month, Disposition, total_juvenile_offspring = No.Juv_offspring) %>%
+  mutate(., date = mdy(date)) %>%
+  mutate(., day = yday(date)) %>%
+  relocate(., day, .after = month)
+
+
+######### Ben's input also further breaks down the number of juveniles assigned to any one parent by parr and smolt ##########
+### par pass the trap in summer-fall
+### smolts pass the trap the following spring
+
+#also want to create geno_age column to inform step below
+juvs <- juvs %>%
+  mutate(., Parent_Pair_SampleYear = ifelse(is.na(Pa_SampleYear), Ma_SampleYear, Pa_SampleYear)) %>%
+  relocate(., Parent_Pair_SampleYear, .after = SampleYear) %>%
+  mutate_at(., c("Parent_Pair_SampleYear", "SampleYear"), as.numeric) %>%
+  mutate(., geno_age = SampleYear - Parent_Pair_SampleYear) %>%
+  relocate(., geno_age, .after = Parent_Pair_SampleYear)
+
+#can now create a new column that designates individuals as parr or smolts depending on their collection date
+#CTUIR calls individuals sampled 1/1 - 6/30 a smolt, and 7/1 - 12/31 a parr
+#looking as length data, seems more appropriate to use 1/1 - 5/31 as smolt, and 6/1 - 12/31 as parr
+#however, there are some cases of rather large juveniles sampled in the fall, which are likely precocious offspring
+#so use geno_age column and month of sampling to assign life stage
+#and just a handful with no date data or length data, so just use geno_age to infer
+par_assign_juv_type <- mutate(juvs, Juv_LifeStage = case_when(geno_age == 1 & sample_month == 6 ~"parr",
+                                                              geno_age == 1 & sample_month == 7 ~"parr", 
+                                                              geno_age == 1 & sample_month == 8 ~"parr", 
+                                                              geno_age == 1 & sample_month == 9 ~"parr", 
+                                                              geno_age == 1 & sample_month == 10 ~"parr", 
+                                                              geno_age == 1 & sample_month == 11 ~"parr", 
+                                                              geno_age == 1 & sample_month == 12 ~"parr", 
+                                                              geno_age == 2 & sample_month == 1 ~"smolt", 
+                                                              geno_age == 2 & sample_month == 2 ~"smolt", 
+                                                              geno_age == 2 & sample_month == 3 ~"smolt", 
+                                                              geno_age == 2 & sample_month == 4 ~"smolt",
+                                                              geno_age == 2 & sample_month == 5 ~"smolt",
+                                                              geno_age == 2 & sample_month == 6 ~"smolt",
+                                                              geno_age == 2 & sample_month == 7 ~"smolt", 
+                                                              geno_age == 2 & sample_month == 8 ~"smolt", 
+                                                              geno_age == 2 & sample_month == 9 ~"smolt", 
+                                                              geno_age == 2 & sample_month == 12 ~"smolt", 
+                                                              geno_age == 1 & is.na(sample_month) ~"parr", 
+                                                              geno_age == 2 & is.na(sample_month) ~"smolt")) %>%
+  relocate(., Juv_LifeStage, .after = sample_month)
+
+#now just want the CRITFC_ID column, Parent1, Parent2, Juv_LifeStage column
+Pa_juv_type <- par_assign_juv_type %>%
+  dplyr::select(., Pa, Juv_LifeStage) %>%
+  filter(., Pa != "0") %>%
+  group_by(Pa, Juv_LifeStage) %>%
+  tally() %>%
+  spread(., Juv_LifeStage, n) %>%
+  replace_na(list(parr = 0, smolt = 0)) %>%
+  dplyr::rename(., Parent = Pa)
+
+
+Ma_juv_type <- par_assign_juv_type %>%
+  dplyr::select(., Ma, Juv_LifeStage) %>%
+  filter(., Ma != "0") %>%
+  group_by(Ma, Juv_LifeStage) %>%
+  tally() %>%
+  spread(., Juv_LifeStage, n) %>%
+  replace_na(list(parr = 0, smolt = 0)) %>%
+  dplyr::rename(., Parent = Ma)
+
+#combine these two dataframes 
+parents_juv_type <- bind_rows(Pa_juv_type, Ma_juv_type)
+  
+
+##### ok that gives us the assignments split out by juvenile life stage #####
+###now can combine with the parents_meta df that has already been formatted for assessing above weir productivity 
+parents_juvs_final <- left_join(juv_parents_meta_1, parents_juv_type, by = c("id" = "Parent"))
+ 
+#Want to sum number of juveniles by parr, smolt and unknown and see how that compares to total_juveniles tabulated above
+parents_juvs_final_test <- parents_juvs_final %>%
+  mutate(., Total = parr + smolt) %>%
+  filter(., total_juvenile_offspring != Total)
+# 0 lines in this data frame so all checks out 
+
+#the study was originally written for just BY2008 - 2016, so can filter for years within this window
+parents_juvs_final <- parents_juvs_final %>%
+  filter(., year >= 2008 & year <= 2016)
+
+#and lastly, this process of filtering produces a df of adults with at least one juvenile offspring
+#But we need to include those adults that were not assigned any because the "zero" adults are important for assessing RRS
+
+#this can be done by first taking the par_assign_update_2 file, filtering for adults from 2008-2016, and which had the opportunity to spawn above weir naturally 
+all_disp <- par_assign_update_2 %>%
+  group_by(., Disposition) %>%
+  tally()
+#includes the following: 
+#Broodstock	1567 -> don't include
+#Broodstock.PassedUpstream	18
+#Broodstock.Outplant 16
+#Carcass	2 -> don't include
+#Carcass.Above.Weir	22
+#Carcass.And.PassedUpstream	47
+#Carcass.Below.Weir	426 -> don't include
+#Juvenile	5594 -> don't include
+#Juvenile.precocial	183 -> don't include
+#Passed.Upstream	4756
+  
+adults_2008.2016 <- filter(par_assign_update_2, LifeHistoryStage == "Adult", SampleYear >= 2008 & SampleYear <= 2016, Disposition != "Broodstock", Disposition != "Carcass", Disposition != "Carcass.Below.Weir", Disposition != "Juvenile", Disposition != "Juvenile.precocial")
+
+#then want to select certain columns and reformat so that it matches the parents_juvs_final df
+adults_2008.2016 <- adults_2008.2016 %>%
+  dplyr::select(., sex = Final_Sex, id = CRITFC_ID, year = SampleYear, origin = origin_combo, length = ForkLength, date = Date, month = sample_month, Disposition, No.Offspring) %>%
+  mutate(date = mdy(date)) %>%
+  mutate(., day = yday(date)) %>%
+  relocate(., day, .after = month)
+
+#now we want to join this adults_2008.2016 df to the parents_juv_final df 
+#such that only those adults that aren't already listed in the parents_juv_final are added
+#anti_join returns all values from x that are not matching in y
+zero_juv_offs_adults <- anti_join(adults_2008.2016, parents_juvs_final, by = "id")
+
+#several of these individuals have offspring assigned, which should all be adult offspring 
+#so can drop the Offspring column
+#then add the Total_juv, parr, smolt and Unk columns to zero_offs_adults df
+zero_juv_offs_adults <- zero_juv_offs_adults %>%
+  mutate(., total_juvenile_offspring = 0, parr = 0, smolt = 0) %>%
+  dplyr::select(., -No.Offspring)
+
+#ok now can bind this zero_offs_adults to the parents_juvs_final to produce final input
+final_juv_input <- bind_rows(parents_juvs_final, zero_juv_offs_adults) 
+
+#so can write the final df to csv
+write_csv(final_juv_input, "GLM Files/LKG_Juvenile_assignments_all-data.csv")
+
+
+####With this new analysis we also want to incorporate our adult to adult assignments 
+###and ultimately join to the juvenile assignments
+#filter for adult assignments
+#again, because only interested in natural production, looking for parents of adults that are NOR
+adults <- par_assign_update_2 %>% 
+  filter(., LifeHistoryStage == "Adult") %>%
+  filter(., origin_combo == "NOR" | origin_combo == "Unk") %>%
+  filter(., Parental_Spawn_Location == "AboveWeir" | Parental_Spawn_Location == "AboveWeir_SingleParent" | Parental_Spawn_Location == "LikelyAboveWeir" | Parental_Spawn_Location == "LikelyNatural_SingleParent")
+
+#and from these adult assignments we want a list of the parents and how many times they were assigned as parents to adults
+adults_Pa <- dplyr::select(adults, Pa) %>%
+  filter(., Pa != "0") %>%
+  dplyr::rename(., Parent = Pa) %>%
+  group_by(., Parent) %>%
+  tally()
+
+adults_Ma <- dplyr::select(adults, Ma) %>%
+  filter(., Ma != "0") %>%
+  dplyr::rename(., Parent = Ma) %>%
+  group_by(., Parent) %>%
+  tally()
+
+adults_parents <- bind_rows(adults_Pa, adults_Ma) %>%
+  dplyr::rename(., Adult_offspring = n)
+
+#join this adults_parents df back to the par_assign metadata and parse down to the info needed
+parents_adult_meta <- left_join(adults_parents, par_assign_update_2, by = c("Parent" = "CRITFC_ID")) %>%
+  dplyr::select(., CRITFC_ID = Parent, Adult_offspring, Disposition, origin_combo, SampleYear, Date, sample_month, Location, ForkLength, FinClips, Final_Sex) 
+
+#check dispositions of adults and verify that any below weir spawners paired with an above weir spawner.
+dis <- group_by(parents_adult_meta, Disposition) %>%
+  tally()
+#dispositions include: 
+#Carcass.Above.Weir
+#Carcass.And.PassedUpstream
+#Carcass.Below.Weir 
+#Juvenile - don't include
+#Passed.Upstream
+#Broodstock.PassedUpstream
+
+#if we look in the "adults" df, any of the Carcass Below Weir spawners were paired with an Passed Upstream spawner, so we can keep
+#The juvenile was a single parent and so we can drop these individuals
+
+#Because we really want to know productivity just ABOVE the weir, all the dispositions above should be included except Juvenile
+parents_adult_meta_1 <- parents_adult_meta %>%
+  filter(., Disposition != "Juvenile")
+
+#format as appropriate
+parents_adult_meta_1 <- parents_adult_meta_1 %>%
+  dplyr::select(., sex = Final_Sex, id = CRITFC_ID, year = SampleYear, origin = origin_combo, length = ForkLength, date = Date, month = sample_month, Disposition, total_adult_offs = Adult_offspring) %>%
+  mutate(., date = mdy(date)) %>%
+  mutate(., day = yday(date)) %>%
+  relocate(., day, .after = month)
+
+
+######### Ben was curious if we could break down the adult assignment by age of offspring##########
+#we already previously calculate the genotype_age (age given parent assignment) so can select relevant columns
+
+#now just want the CRITFC_ID column, Pa, Ma, Inferred_Offs_Age column
+Pa_adult_age_offs <- adults %>%
+  dplyr::select(., Pa, Inferred_Offs_Age, origin_combo, Pa_Disposition) %>%
+  filter(., Pa != "0", Pa_Disposition != "Juvenile") %>% #need to remove juveniles since that wasn't done for the "adults" df
+  dplyr::select(., Pa, Inferred_Offs_Age) %>%
+  group_by(Pa, Inferred_Offs_Age) %>%
+  tally() %>%
+  spread(., Inferred_Offs_Age, n) %>%
+  dplyr::rename(., Parent = Pa, "age-3 offspring" = 2, "age-4 offspring" = 3, "age-5 offspring" = 4) %>%
+  replace_na(list("age-3 offspring" = 0, "age-4 offspring" = 0, "age-5 offspring" = 0))
+
+
+Ma_adult_age_offs <- adults %>%
+  dplyr::select(., Ma, Inferred_Offs_Age, origin_combo, Ma_Disposition) %>%
+  filter(., Ma != "0", Ma_Disposition != "Juvenile") %>%
+  group_by(Ma, Inferred_Offs_Age) %>%
+  tally() %>%
+  spread(., Inferred_Offs_Age, n) %>%
+  dplyr::rename(., Parent = Ma, "age-3 offspring" = 2, "age-4 offspring" = 3, "age-5 offspring" = 4) %>%
+  replace_na(list("age-3 offspring" = 0, "age-4 offspring" = 0, "age-5 offspring" = 0))
+
+#combine these two dataframes 
+parents_adult_age_offs <- bind_rows(Pa_adult_age_offs, Ma_adult_age_offs) 
+
+
+##### ok that gives us the adult assignments split out by adult offspring genotype age#####
+###now can lastly combine with the parents_adult_meta df
+parents_adults_final <- left_join(parents_adult_meta_1, parents_adult_age_offs, by = c("id" = "Parent"))
+
+
+#Want to check that the numbers all check out
+parents_adults_final_test <- parents_adults_final %>%
+  mutate(., Total = `age-3 offspring` + `age-4 offspring` + `age-5 offspring`) %>%
+  filter(., total_adult_offs != Total)
+#0 entries so all checks out! 
+
+#the study was originally written for just BY2008 - 2016, so can filter for years within this window
+parents_adults_final <- parents_adults_final %>%
+  filter(., year >= 2008 & year <= 2016)
+
+#and lastly this process of filtering will only include adults with at least one adult offspring
+#But we need to include those adults that were not assigned any because the "zero" adults are important for assessing RRS
+#can do so by combining the parents_adult_final to the final_juv_input file that already all adults from 2008-2016 list
+#and fill in the columns with "0" as needed
+all_assign_final <- left_join(final_juv_input, parents_adults_final, by = "id") %>%
+  dplyr::select(., sex = sex.x, id, year = year.x, origin = origin.x, length = length.x, date = date.x, day = day.x, disposition = Disposition.x, total_juvenile_offspring, parr, smolt, total_adult_offs, `age-3 offspring`, `age-4 offspring`, `age-5 offspring`) %>%
+  replace_na(., list(total_adult_offs = 0, 'age-3 offspring' = 0, 'age-4 offspring' = 0, 'age-5 offspring' = 0))
+
+#last thing I want to do is compare the total adult + juvenile assignment in this new all_assign_final
+# to the original par_assign and see how the numbers line up
+all_assign_test <- all_assign_final %>%
+  mutate(., Total = total_juvenile_offspring + total_adult_offs)
+
+all_assign_test_1 <- left_join(all_assign_test, par_assign_update_2, by = c("id" = "CRITFC_ID")) %>%
+  filter(., Total != No.Offspring) %>%
+  mutate_at(., c("No.Offspring", "Total"), as.numeric) %>%
+  mutate(offs_diff = No.Offspring - Total) %>%
+  relocate(., offs_diff, .after = id)
+
+#30 individuals here
+#Total from summing total_juveniles + Total_Adult_Offs is always less than the "No.Offspring" count
+#all of differences occur for individuals that were listed as "Broodstock.Outplant" or "Broodstock.Release," and so technically could have been natural spawners, but found to be parents with Broodstock fish some some or all of they're offspring were HOR and therefore not counted in the dataframe created for the GLM
+
+#the last thing we want to do is create a life stage column based on length, where individuals less than 600mm are considered jack/jill
+#and create a total offspring column that is the sum of adult and juv offspring recovered
+all_assign_final <- all_assign_final %>%
+  mutate_at(., c("length"), as.numeric) %>%
+  mutate(., life_stage = case_when(sex == "M" & length < 600 ~ "jack", 
+                                   sex == "F" & length < 600 ~ "jill", 
+                                   sex == "M" & length >= 600 ~ "adult", 
+                                   sex == "F" & length >= 600 ~ "adult")) %>%
+  relocate(., life_stage, .after = disposition) %>%
+  mutate(., Total_Adult_And_Juv_Offs = total_juvenile_offspring + total_adult_offs)
+
+#save as rdata frame
+save(all_assign_final, file = 'GLM Files/GLM_final_input.Rdata')
+
+#write to csv
+write_csv(all_assign_final, "GLM files/LKG_Adults_and_Juveniles_assignments_all-data.csv")
+
+
+#estimate the proportion of natural spawners that we included in our analysis that produced offspring
+#only want adults
+all_assign_final_adults <- all_assign_final %>%
+  filter(., life_stage == "adult")
+
+counts_per_BY <- all_assign_final_adults %>%
+  group_by(., sex, year, origin) %>%
+  tally() %>%
+  dplyr::rename(., Total = n)
+
+counts_assigned_off <- all_assign_final_adults %>%
+  filter(., Total_Adult_And_Juv_Offs > 0) %>%
+  group_by(., sex, year, origin) %>%
+  tally() %>%
+  dplyr::rename(., No.Assigned.Off = n)
+
+prop_BY_repro_succ <- left_join(counts_per_BY, counts_assigned_off) %>%
+  mutate(., Proportion_BroodYear_ReproSuccess = No.Assigned.Off/Total)
+
+
+write_csv(prop_BY_repro_succ, "GLM files/Proportion_Natural_Spawners_Repro_Success.csv")
+
+
+#also want to compute average bio data by category 
+avg_FL <- all_assign_final %>%
+  group_by(., sex, year, origin) %>%
+  summarize(., mean_FL = mean(length))
+
+avg_FL_success <- all_assign_final %>%
+  filter(., Total_Adult_And_Juv_Offs > 0) %>%
+  group_by(., sex, year, origin) %>%
+  summarize(., mean_FL = mean(length))
+
+avg_day <- all_assign_final %>%
+  group_by(., sex, year, origin) %>%
+  summarize(., mean_day = mean(day))
+
+avg_day_success <- all_assign_final %>%
+  filter(., Total_Adult_And_Juv_Offs > 0) %>%
+  group_by(., sex, year, origin) %>%
+  summarize(., mean_day = mean(day))
+
+#want to plot family size by brood year 
+family_size_counts <- all_assign_final %>%
+  group_by(year, sex, origin, Total_Adult_And_Juv_Offs) %>%
+  count()
+
+library(ggplot2)
+family_size_counts$Total_Adult_And_Juv_Offs <- as.integer(family_size_counts$Total_Adult_And_Juv_Offs)
+
+family_size_counts <- family_size_counts %>%
+  filter(sex != "?") %>%
+  filter(origin != "Unk") 
+
+totals_per_year <- family_size_counts %>%
+  group_by(., year) %>%
+  summarize(., total= sum(n))
+
+combine <- left_join(family_size_counts, totals_per_year)
+
+family_size_proportion <- combine %>%
+  mutate(., proportion = n/total)
+
+family_size_2008 <- family_size_proportion %>%
+  filter(., year == 2008)
+family_size_2009 <- family_size_proportion %>%
+  filter(., year == 2009)
+family_size_2010 <- family_size_proportion %>%
+  filter(., year == 2010)
+family_size_2011 <- family_size_proportion %>%
+  filter(., year == 2011)
+family_size_2012 <- family_size_proportion %>%
+  filter(., year == 2012)
+family_size_2013 <- family_size_proportion %>%
+  filter(., year == 2013)
+family_size_2014 <- family_size_proportion %>%
+  filter(., year == 2014)
+family_size_2015 <- family_size_proportion %>%
+  filter(., year == 2015)
+family_size_2016 <- family_size_proportion %>%
+  filter(., year == 2016)
+
+sex_names <- c(`F` = "Female", 
+               `M` = "Male")
+
+a <- ggplot(family_size_2008) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,30,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2008 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())
+
+b <- ggplot(family_size_2009) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,60,10)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2009 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())
+
+c <- ggplot(family_size_2010) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,30,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2010 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())  
+
+d <- ggplot(family_size_2011) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,30,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2011 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())  
+
+e <- ggplot(family_size_2012) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,30,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2012 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())  
+
+f <- ggplot(family_size_2013) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,30,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2013 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank()) 
+
+g <- ggplot(family_size_2014) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,45,5)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2014 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())
+
+h <- ggplot(family_size_2015) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,24,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2015 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())
+
+i <- ggplot(family_size_2016) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_wrap(~ sex, labeller = as_labeller(sex_names)) +
+  scale_x_continuous(breaks= seq(0,34,2)) +
+  xlab("Total No. of Adult and Juvenile Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  ggtitle("BY2016 Natural Spawners") +
+  theme_bw() + theme(panel.grid.minor = element_blank())
+
+names <- c(`F` = "Female", 
+               `M` = "Male", 
+               `2008` = "2008", 
+               `2009` = "2009", 
+               `2010` = "2010", 
+               `2011` = "2011", 
+               `2012` = "2012", 
+               `2013` = "2013", 
+               `2014` = "2014", 
+               `2015` = "2015", 
+               `2016` = "2016")
+
+all <- ggplot(family_size_proportion) +
+  geom_bar(aes(Total_Adult_And_Juv_Offs, proportion, fill = origin), stat = 'identity', position = position_dodge2(width = 0.8, preserve = "single")) +
+  facet_grid(year ~ sex, labeller = as_labeller(names)) +
+  scale_x_continuous(breaks= seq(0,60,5)) +
+  xlab("Total No. Progeny per Spawner") +
+  ylab("Frequency") +
+  labs(fill = "Origin") +
+  theme_bw() + theme(panel.grid.minor = element_blank())
+
+```
+
+
+In addition to comparing individual reproductive success by origin, we also want to compare reproductive success by cross type. This is where we compare the number of offspring attributed to Hatchery-Origin x Hatchery-Origin crosses vs. Natural-Origin x Hatchery-Origin vs. Natural-Origin x Natural-Origin. 
+
+We will start with the updated par_assign df saved as a R dataframe. 
+
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(lubridate)
+
+#load the df where we've updated sex according to parentage, disposition and ParentageOrigin
+load("GLM Files/par_assign_updated.Rdata")
+
+#review spawn locations and only keep above weir spawners
+spawn_locations <- par_assign_update_2 %>%
+  group_by(Parental_Spawn_Location) %>%
+  tally()
+
+#Parental_Spawn_Location        n
+# AboveWeir                   4584 -> keep
+# AboveWeir_SingleParent       811 -> keep
+# BelowWeir                     10
+# BelowWeir_SingleParent        25
+# Hatchery                    3370
+# LikelyAboveWeir               48 -> keep
+# LikelyNatural_SingleParent     3 (these are all jvuenile parents so can drop)
+# NA                          3780
+
+par_assign_above_weir <- par_assign_update_2 %>%
+  filter(., Parental_Spawn_Location == "AboveWeir" | Parental_Spawn_Location == "AboveWeir_SingleParent" | Parental_Spawn_Location == "LikelyAboveWeir")
+
+
+#want to see all cross types
+cross_types <- par_assign_above_weir %>%
+  group_by(Parental_CrossType) %>%
+  tally()
+
+#to compare productivity by cross types, we can only consider those where at least one parent is known origin
+par_assign_above_known_cross <- par_assign_above_weir %>%
+  filter(., Parental_CrossType == "HxH" | Parental_CrossType == "HxN" | Parental_CrossType == "HxNA" | Parental_CrossType == "NAxH" | Parental_CrossType == "NAxN" | Parental_CrossType == "NxH" | Parental_CrossType == "NxN" | Parental_CrossType == "NxNA")
+
+#Lastly want to filter out any crosses from <2008 or >2016 and which involve jack/jill parents
+par_assign_filtered <- par_assign_above_known_cross %>%
+  mutate_at(., c("Pa_ForkLength", "Ma_ForkLength"), as.numeric) %>%
+  mutate(., Pa_life_stage = case_when(Pa_ForkLength < 600 ~ "jack", 
+                                   Pa_ForkLength >= 600 ~ "adult")) %>%
+  mutate(., Ma_life_stage = case_when(Ma_ForkLength < 600 ~ "jill", 
+                                      Ma_ForkLength >= 600 ~ "adult")) %>%
+  relocate(., Pa_life_stage, .after = Pa_LifeHistoryStage) %>%
+  relocate(., Ma_life_stage, .after = Ma_LifeHistoryStage) %>%
+  unite(., Pa_Ma_life_stage, Pa_life_stage, Ma_life_stage, sep = "_") %>%
+  relocate(., Pa_Ma_life_stage, .after = OffspCollection)
+
+Parental_life_stage_combo <- par_assign_filtered %>%
+  group_by(Pa_Ma_life_stage) %>%
+  tally()
+
+#only keep crosses with only adult parent(s)
+par_assign_adults_only <- par_assign_filtered %>%
+  filter(., Pa_Ma_life_stage == "adult_adult" | Pa_Ma_life_stage == "adult_NA" | Pa_Ma_life_stage == "NA_adult")
+
+#and then lastly drop any crosses with Pa or Ma_sample year outside of the 2008-2016 window
+par_assign_final <- par_assign_adults_only %>%
+  mutate(., Parental_SampleYear = ifelse(is.na(Pa_SampleYear), Ma_SampleYear, Pa_SampleYear)) %>%
+  relocate(., Parental_SampleYear, .after = OffspCollection) %>%
+  filter(., Parental_SampleYear >=2008 & Parental_SampleYear <= 2016)
+
+#ok now what is our summary by cross type
+cross_types <- par_assign_final %>%
+  group_by(Parental_CrossType) %>%
+  tally()
+
+#Parental_CrossType n
+#	HxH	1985
+#	HxN	609
+#	NxH	778
+#	NxN	681
+
+#	HxNA	108
+#	NAxH	441
+#	NAxN	220
+#	NxNA	31
+
+#HxH = both parents hatchery
+#HxN = dad hatchery, mom natural
+#NxH = dad natural, mom hatchery
+#NxN = both natural 
+
+#HxNA = dad hatchery (single parent)
+#NAxH = mom hatchery (single parent)
+#NAxN = mom natural (single parent)
+#NxNA = dad natural (single parent)
+
+#create column that combines Pa and Ma ID to see each unique cross
+par_assign_final <- par_assign_final %>%
+  unite(., Pa_Ma, Pa, Ma, sep = ":", remove = FALSE) %>%
+  relocate(., Pa_Ma, .after = Parental_Spawn_Location)
+
+#as with the RRS by individual spawner, we want to split out juvenile offspring and adult offspring
+par_assign_final_adult_offs <- par_assign_final %>%
+  filter(., LifeHistoryStage == "Adult")
+
+par_assign_final_juv_offs <- par_assign_final %>%
+  filter(., LifeHistoryStage == "Juvenile")
+
+#then count up number of offspring assigned to each unique cross 
+Adult_offs_per_cross <- par_assign_final_adult_offs %>%
+  group_by(Pa_Ma) %>%
+  tally() %>%
+  rename(., No.Offspring = n)
+
+Juv_offs_per_cross <- par_assign_final_juv_offs %>%
+  group_by(Pa_Ma) %>%
+  tally() %>%
+  rename(., No.Offspring = n)
+
+
+#combine back to par_assign_final to get all desired metadata
+adult_offs_tally_per_cross <- left_join(Adult_offs_per_cross, par_assign_final, by = "Pa_Ma") %>%
+  select(., Pa_Ma, No.Offspring.x, Parental_CrossType, Parental_Spawn_Location, Parental_SampleYear, Pa_Ma_life_stage, Pa_Disposition, Pa_Origin, Pa_Date, Pa_Location, Pa_ForkLength, Pa_FinClips, Ma_Disposition, Ma_Origin, Ma_Date, Ma_Location, Ma_ForkLength, Ma_FinClips) %>%
+  rename(., No.Offspring = No.Offspring.x) %>%
+  distinct()
+
+juv_offs_tally_per_cross <- left_join(Juv_offs_per_cross, par_assign_final, by = "Pa_Ma") %>%
+  select(., Pa_Ma, No.Offspring.x, Parental_CrossType, Parental_Spawn_Location, Parental_SampleYear, Pa_Ma_life_stage, Pa_Disposition, Pa_Origin, Pa_Date, Pa_Location, Pa_ForkLength, Pa_FinClips, Ma_Disposition, Ma_Origin, Ma_Date, Ma_Location, Ma_ForkLength, Ma_FinClips) %>%
+  rename(., No.Offspring = No.Offspring.x) %>%
+  distinct()
+
+#for the RRS by cross type calculation we only consider trios with parental origins known
+RRS_per_cross_input_adults <- adult_offs_tally_per_cross %>%
+  filter(., Parental_CrossType == "HxH" | Parental_CrossType == "HxN" | Parental_CrossType == "NxH" | Parental_CrossType == "NxN")
+
+RRS_per_cross_input_juvs <- juv_offs_tally_per_cross %>%
+  filter(., Parental_CrossType == "HxH" | Parental_CrossType == "HxN" | Parental_CrossType == "NxH" | Parental_CrossType == "NxN")
+
+#write these to csv as input for GLM
+write_csv(RRS_per_cross_input_adults, "GLM Files/Adult_Offs_per_Cross.csv")
+write_csv(RRS_per_cross_input_juvs, "GLM Files/Juv_Offs_per_Cross.csv")
+
+#summarize the cross types per spawn year
+cross_type_summary_adults <- RRS_per_cross_input_adults %>%
+  group_by(., Parental_SampleYear, Parental_CrossType) %>%
+  tally()
+
+cross_type_summary_adult_offs <- RRS_per_cross_input_adults %>%
+  group_by(., Parental_SampleYear, Parental_CrossType) %>%
+  summarise(., Total_Offs_Assigned = sum(No.Offspring))
+
+cross_type_summary_adult_final <- left_join(cross_type_summary_adults, cross_type_summary_adult_offs)
+
+cross_type_summary_juvs <- RRS_per_cross_input_juvs %>%
+  group_by(., Parental_SampleYear, Parental_CrossType) %>%
+  tally()
+
+cross_type_summary_juv_offs <- RRS_per_cross_input_juvs %>%
+  group_by(., Parental_SampleYear, Parental_CrossType) %>%
+  summarise(., Total_Offs_Assigned = sum(No.Offspring))
+
+cross_type_summary_juv_final <- left_join(cross_type_summary_juvs, cross_type_summary_juv_offs)
+
+
+write_csv(cross_type_summary_adult_final, "GLM Files/Summary_AdultOffsAssigned_ByCrossType.csv")
+write_csv(cross_type_summary_juv_final, "GLM Files/Summary_JuvOffsAssigned_ByCrossType.csv")
+```
+
+
+```{r}
+rm(list = ls())
+#We lastly want to look at the number of grand-offspring attributed to each spawner from 2008-2012 to see if having a NOR or HOR grandparent confers an advantage across two generations
+
+#read in the finalized input
+all_assign <- read_csv("Templates_for_RRS_script/GLM_Lookingglass_ParentCrossType_Input.csv", col_types = cols(.default = "c"))
+
+#note there are still broodstock individuals in this list but that should be dropped when I combine to the GLM input to send to Ben that was already created
+#next we want to focus on those adults that spawned from 2008-2012 that produced offspring 
+f0_succ_spawners <- all_assign %>%
+  filter(., LifeHistoryStage == "Adult") %>%
+  filter(., SampleYear >=2008 & SampleYear <=2012) %>%
+  filter(No.Offspring >0)
+
+#split into males and females
+f0_succ_males <- f0_succ_spawners %>%
+  filter(., Final_Sex == "M") %>%
+  select(., CRITFC_ID) %>%
+  rename(., CRITFC_ID_Pa = CRITFC_ID)
+
+f0_succ_females <- f0_succ_spawners %>%
+  filter(., Final_Sex == "F") %>%
+  select(., CRITFC_ID) %>%
+  rename(., CRITFC_ID_Ma = CRITFC_ID)
+
+#now want to see the individual offspring associated with each of these BY08-2012 spawners
+#by fathers first
+offspring_of_fathers <- left_join(f0_succ_males, all_assign, by = c("CRITFC_ID_Pa" = "Pa"))
+
+#this shows all the offspring attributed to each successful male spawner from 2008-2012. But what we're really interested in is the number of offspring these offspring had (i.e., the number of grand-offspring)
+#we also only want to look at those offspring that were allowed to spawn naturally to eliminate the effect of the f1 generation being spawned in the hatchery or having been a juvenile and so we don't know what it's ultimate disposition would be
+#so first we filter accordingly 
+#lets see the disposition options
+dispositions <- offspring_of_fathers %>%
+  select(., Disposition) %>%
+  distinct()
+
+#dispositions to keep include: Passed.Upstream, Carcass.Above.Weir, Carcass.And.PassedUpstream, Broodstock.Outplant
+offspring_of_fathers$No.Offspring <- as.double(offspring_of_fathers$No.Offspring)
+
+offspring_of_father_naturalspawn <- offspring_of_fathers %>%
+  filter(., LifeHistoryStage == "Adult") %>%
+  filter(., Disposition == "Passed.Upstream" | Disposition == "Carcass.Above.Weir" | Disposition == "Carcass.And.PassedUpstream" | Disposition == "Broodstock.Outplant") %>%
+  select(., CRITFC_ID_Pa, F1_Kid_ID = CRITFC_ID, No.Offspring, Final_Sex)
+
+#now we want to be able to split the number of grand-offspring assigned to each 2008-2012 spawner into Adult and juvenile grand-offspring. To do that we need to see all the offspring attributed to each F1_Kid
+f1_offspring_males <- offspring_of_father_naturalspawn %>%
+  filter(., Final_Sex == "M")
+
+f1_offspring_females <- offspring_of_father_naturalspawn %>%
+  filter(., Final_Sex == "F")
+
+#combine to all assign
+f2_offspring_id_F1M <- left_join(f1_offspring_males, all_assign, by = c("F1_Kid_ID" = "Pa"))
+
+#then group by each CRITFC_ID_Pa (f0 grandpa), then by life history stage to see how many grand offspring were adults, juveniles, or NA (where NA means that a F1 offspring didn't have any offspring itself)
+grand_offspring_per_father_F1_M <- f2_offspring_id_F1M %>%
+  group_by(CRITFC_ID_Pa, LifeHistoryStage) %>%
+  count()
+
+#change to wide
+grand_offspring_per_father_wide_F1M <- grand_offspring_per_father_F1_M %>%
+  pivot_wider(., names_from = LifeHistoryStage, values_from = n) %>%
+  rename(., Adult_GrandOffspring = Adult, Juv_GrandOffspring = Juvenile, Zero_GrandOffspring = "NA") %>%
+  replace(is.na(.),0)
+
+#now for F1 females
+f2_offspring_id_F1F <- left_join(f1_offspring_females, all_assign, by = c("F1_Kid_ID" = "Ma"))
+
+grand_offspring_per_father_F1_F <- f2_offspring_id_F1F %>%
+  group_by(CRITFC_ID_Pa, LifeHistoryStage) %>%
+  count()
+
+grand_offspring_per_father_wide_F1F <- grand_offspring_per_father_F1_F %>%
+  pivot_wider(., names_from = LifeHistoryStage, values_from = n) %>%
+  rename(., Adult_GrandOffspring = Adult, Juv_GrandOffspring = Juvenile, Zero_GrandOffspring = "NA") %>%
+  replace(is.na(.),0)
+
+#Then combine these two to calculate all adult and juvenile grand-offspring attributed to each male spawner from 2008-2012
+grand_offspring_per_father_all <- full_join(grand_offspring_per_father_wide_F1F, grand_offspring_per_father_wide_F1M, by = "CRITFC_ID_Pa") %>%
+  replace(is.na(.), 0) %>%
+  mutate(., Total_Adult_Grand_Offs = sum(Adult_GrandOffspring.x, Adult_GrandOffspring.y)) %>%
+  mutate(., Total_Juv_Grand_Offs = sum(Juv_GrandOffspring.x, Juv_GrandOffspring.y)) %>%
+  mutate(., Total_GrandOffs = sum(Total_Adult_Grand_Offs, Total_Juv_Grand_Offs)) %>%
+  select(., CRITFC_ID_Pa, Total_Adult_Grand_Offs, Total_Juv_Grand_Offs, Total_GrandOffs)
+
+#ok now do this is again but for female spawners from 2008-2012
+offspring_of_mothers <- left_join(f0_succ_females, all_assign, by = c("CRITFC_ID_Ma" = "Ma"))
+
+#this shows all the offspring attributed to each successful female spawner from 2008-2012. But what we're really interested in is the number of offspring these offspring had (i.e., the number of grand-offspring)
+#we also only want to look at those offspring that were allowed to spawn naturally to eliminate the effect of the f1 generation being spawned in the hatchery or having been a juvenile and so we don't know what it's ultimate disposition would be
+#so first we filter accordingly 
+#lets see the disposition options
+dispositions <- offspring_of_fathers %>%
+  select(., Disposition) %>%
+  distinct()
+
+#dispositions to keep include: Passed.Upstream, Carcass.Above.Weir, Carcass.And.PassedUpstream, Broodstock.Outplant
+offspring_of_mothers$No.Offspring <- as.double(offspring_of_mothers$No.Offspring)
+
+offspring_of_mother_naturalspawn <- offspring_of_mothers %>%
+  filter(., LifeHistoryStage == "Adult") %>%
+  filter(., Disposition == "Passed.Upstream" | Disposition == "Carcass.Above.Weir" | Disposition == "Carcass.And.PassedUpstream" | Disposition == "Broodstock.Outplant") %>%
+  select(., CRITFC_ID_Ma, F1_Kid_ID = CRITFC_ID, No.Offspring, Final_Sex)
+
+#now we want to be able to split the number of grand-offspring assigned to each 2008-2012 spawner into Adult and juvenile grand-offspring. To do that we need to see all the offspring attributed to each F1_Kid
+f1_offspring_males <- offspring_of_mother_naturalspawn %>%
+  filter(., Final_Sex == "M")
+
+f1_offspring_females <- offspring_of_mother_naturalspawn %>%
+  filter(., Final_Sex == "F")
+
+#combine to all assign
+f2_offspring_id_F1M <- left_join(f1_offspring_males, all_assign, by = c("F1_Kid_ID" = "Pa"))
+
+grand_offspring_per_mother_F1_M <- f2_offspring_id_F1M %>%
+  group_by(CRITFC_ID_Ma, LifeHistoryStage) %>%
+  count()
+
+grand_offspring_per_mother_wide_F1M <- grand_offspring_per_mother_F1_M %>%
+  pivot_wider(., names_from = LifeHistoryStage, values_from = n) %>%
+  rename(., Adult_GrandOffspring = Adult, Juv_GrandOffspring = Juvenile, Zero_GrandOffspring = "NA") %>%
+  replace(is.na(.),0)
+
+#now for F1 females
+f2_offspring_id_F1F <- left_join(f1_offspring_females, all_assign, by = c("F1_Kid_ID" = "Ma"))
+
+grand_offspring_per_mother_F1_F <- f2_offspring_id_F1F %>%
+  group_by(CRITFC_ID_Ma, LifeHistoryStage) %>%
+  count()
+
+grand_offspring_per_mother_wide_F1F <- grand_offspring_per_mother_F1_F %>%
+  pivot_wider(., names_from = LifeHistoryStage, values_from = n) %>%
+  rename(., Adult_GrandOffspring = Adult, Juv_GrandOffspring = Juvenile, Zero_GrandOffspring = "NA") %>%
+  replace(is.na(.),0)
+
+#Then combine these two to calculate all adult and juvenile grand-offspring attributed to each female spawner from 2008-2012
+grand_offspring_per_mother_all <- full_join(grand_offspring_per_mother_wide_F1F, grand_offspring_per_mother_wide_F1M, by = "CRITFC_ID_Ma") %>%
+  replace(is.na(.), 0) %>%
+  mutate(., Total_Adult_Grand_Offs = sum(Adult_GrandOffspring.x, Adult_GrandOffspring.y)) %>%
+  mutate(., Total_Juv_Grand_Offs = sum(Juv_GrandOffspring.x, Juv_GrandOffspring.y)) %>%
+  mutate(., Total_GrandOffs = sum(Total_Adult_Grand_Offs, Total_Juv_Grand_Offs)) %>%
+  select(., CRITFC_ID_Ma, Total_Adult_Grand_Offs, Total_Juv_Grand_Offs, Total_GrandOffs)
+
+
+#combine the two summative grand offspring per mother/father data frames
+#rename first
+grand_offspring_per_father_all <- grand_offspring_per_father_all %>%
+  rename(., CRITFC_ID = CRITFC_ID_Pa)
+
+grand_offspring_per_mother_all <- grand_offspring_per_mother_all %>%
+  rename(., CRITFC_ID = CRITFC_ID_Ma)
+
+grand_offspring_combined <- bind_rows(grand_offspring_per_father_all, grand_offspring_per_mother_all)
+
+#now I want to combine this to the GLM input I give to Ben to see if we can also evaluate for significant differences in the number of grand offspring produced
+#this input has already been filtered to just include the fish of interest to this study, so combining the no.grandoffspring data to that will ensure we don't pull in any unwanted fish at this time
+glm_input <- read_csv("GLM Files/LKG_Adults_and_Juveniles_assignments_all-data.csv", col_types = cols(.default = "c"))
+
+#combine
+glm_input_with_grand_offs <- left_join(glm_input, grand_offspring_combined, by = c("id" = "CRITFC_ID"))
+
+#write to csv and check for accuracy
+write_csv(glm_input_with_grand_offs, "GLM Files/LKG_Adults_and_Juvenile_assignments_with_GrandOffspring_Final.csv")
+
+
+```
+
+
