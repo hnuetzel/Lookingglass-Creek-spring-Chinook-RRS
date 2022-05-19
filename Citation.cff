@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you intend to use the data in this software for purposes other than reproduction of the analyses detailed in (Nuetzel et al., XXXX), you must consult with the owners of these data - The Confederated Tribes of the Umatilla Indian Reservation & Oregon Department of Fish & Wildlife. Please contact the individuals listed below before pulling this repository."
+authors:
+- family-names: Naylor
+  given-names: Leslie
+  orcid: ""
+- family-names: Nuetzel
+  given-names: Hayley 
+  orcid: ""
+title: "Lookingglass-Creek-spring-Chinook-RRS"
+version: 1.0.0
+doi: 10.5281/zenodo.1234
+date-released: 2022-05-19
+url: "https://github.com/hnuetzel/Lookingglass-Creek-spring-Chinook-RRS"
