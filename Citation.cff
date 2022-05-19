@@ -1,14 +1,11 @@
 cff-version: 1.2.0
-message: "If you intend to use the data in this repository for purposes other than reproduction of the analyses detailed in (Nuetzel et al., XXXX), 
-you must consult with the owners of these data - The Confederated Tribes of the Umatilla Indian Reservation & Oregon Department of Fish & Wildlife. 
-Please contact the individuals listed below before pulling this repository."
+message: "All of the scripts in this repository were written by Hayley Nuetzel, and she may be cited as the author of this repository. However, all data 
+were collected by and are owned by the CTUIR and ODFW. Any attempt to use these data beyond duplication of the analyses presented in Nuetzel et al., , must
+receive the explicit permission of the CTUIR and ODFW."
 authors:
 - family-names: Nuetzel
   given-names: Hayley 
   orcid: 0000-0002-9719-4862
-- family-names: Naylor
-  given-names: Leslie
-  orcid: ""
 title: "Lookingglass-Creek-spring-Chinook-RRS"
 doi: 
 date-released: 2022-05-19
