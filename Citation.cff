@@ -1,5 +1,7 @@
 cff-version: 1.2.0
-message: "If you intend to use the data in this software for purposes other than reproduction of the analyses detailed in (Nuetzel et al., XXXX), you must consult with the owners of these data - The Confederated Tribes of the Umatilla Indian Reservation & Oregon Department of Fish & Wildlife. Please contact the individuals listed below before pulling this repository."
+message: "If you intend to use the data in this software for purposes other than reproduction of the analyses detailed in (Nuetzel et al., XXXX), 
+you must consult with the owners of these data - The Confederated Tribes of the Umatilla Indian Reservation & Oregon Department of Fish & Wildlife. 
+Please contact the individuals listed below before pulling this repository."
 authors:
 - family-names: Naylor
   given-names: Leslie
