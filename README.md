@@ -2,7 +2,7 @@
 This repository provides the scripts and data files used to generate individual reproductive success estimates for hatchery-origin (HOR) and natural-origin (NOR) spring Chinook salmon that spawned in Lookingglass Creek, OR from 2008-2016.
 
 ## Data Ownership
-If you intend to use any part of this data set for analyses beyond reproduction of the parentage analyses outlined within this repository, you MUST receive permission from the entites that own the data. This includes the Confederated Tribes of the Umatilla Indian Reservation (CTUIR) and the Oregon Department of Fish & Wildlife (ODFW). Please contact Les Naylor at LesNaylor@ctuir.org to discuss permissions to use these data. 
+If you intend to use any part of this data set for analyses beyond reproduction of the parentage analyses outlined within this repository, you MUST receive permission from the entities that own the data. This includes the Confederated Tribes of the Umatilla Indian Reservation (CTUIR) and the Oregon Department of Fish & Wildlife (ODFW). Please contact Les Naylor, Carrie Crump & Gene Shippentower at the following email addresses to discuss permissions to use these data: lesnaylor@ctuir.org, carriecrump@ctuir.org & geneshippentower@ctuir.org. 
 
 ## Repository Description
 In addition to the files included here, you'll need to make sure you have SNPPIT and COLONY2 downloaded to your machine. Also please take note of file paths, as you'll likely need to edit those within the Rmarkdown files according to how you structure your Rproject. 
