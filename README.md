@@ -1,6 +1,8 @@
 # Lookingglass-Creek-spring-Chinook-RRS
 This repository provides the scripts and data files used to generate individual reproductive success estimates for hatchery-origin (HOR) and natural-origin (NOR) spring Chinook salmon that spawned in Lookingglass Creek, OR from 2008-2016.
 
+These analyses are detailed in the manuscript *Improved productivity of naturalized spring Chinook salmon following reintroduction from a hatchery stock in Lookingglass Creek, Oregon*, which is currently under preparation. 
+
 ## Data Ownership
 If you intend to use any part of this data set for analyses beyond reproduction of the parentage analyses outlined within this repository, you MUST receive permission from the entities that own the data. This includes the Confederated Tribes of the Umatilla Indian Reservation (CTUIR) and the Oregon Department of Fish & Wildlife (ODFW). Please contact Les Naylor, Carrie Crump & Gene Shippentower at the following email addresses to discuss permissions to use these data: lesnaylor@ctuir.org, carriecrump@ctuir.org & geneshippentower@ctuir.org. 
 
