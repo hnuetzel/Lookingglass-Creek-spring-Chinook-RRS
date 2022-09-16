@@ -38,9 +38,9 @@ par_assign_F_update <- left_join(sex_updates, par_assign, by = c("CRITFC_ID" = "
   mutate(., final_sex = ifelse(Ma_Final_Sex == 'F', 'F', '?')) %>%
   dplyr::select(-Ma_Final_Sex)
 
-individ_sex_to_update <- bind_rows(par_assign_M_update, par_assign_F_update)
+#actually only one individual and found to be a M, so combine to that df
 
-par_assign_update <- left_join(par_assign, individ_sex_to_update, by = "CRITFC_ID") %>%
+par_assign_update <- left_join(par_assign, par_assign_M_update, by = "CRITFC_ID") %>%
   mutate(., FinalSex_Update = ifelse(is.na(final_sex), Final_Sex, final_sex)) %>%
   relocate(., FinalSex_Update, .after = Final_Sex) %>%
   select(., -Final_Sex, -final_sex) %>%
@@ -80,6 +80,15 @@ par_assign_update_2 <- par_assign_update_1 %>%
 
 #save this cleaned up input for later
 save(par_assign_update_2, file = 'GLM Files/par_assign_updated.Rdata')
+
+#can generate a summary of adults that would have been considered as progeny per year
+adult_counts <- par_assign_update_2 %>%
+  filter(., LifeHistoryStage == "Adult") %>%
+  filter(., origin_combo == "NOR" | origin_combo == "Unk") %>%
+  group_by(., SampleYear) %>%
+  count() %>%
+  filter(., SampleYear >= 2012) %>%
+  rename(., adults = n)
 
 #see the different parental_spawn locations
 spawn_locations <- par_assign_update_2 %>%
@@ -133,7 +142,8 @@ dis <- group_by(juv_parents_meta, Disposition) %>%
 #2 Carcass.Above.Weir            14
 #3 Carcass.And.PassedUpstream    13
 #4 Carcass.Below.Weir            11
-#5 Passed.Upstream             1873
+#5 Passed.Upstream             1872
+#6 NA                             1
 
 #confirmed in the "juvs" dataframe that all Carcass.Below.Weir individuals paired with an above stream spawner, so we will leave them 
 
@@ -183,6 +193,19 @@ par_assign_juv_type <- mutate(juvs, Juv_LifeStage = case_when(geno_age == 1 & sa
                                                               geno_age == 1 & is.na(sample_month) ~"parr", 
                                                               geno_age == 2 & is.na(sample_month) ~"smolt")) %>%
   relocate(., Juv_LifeStage, .after = sample_month)
+
+#this is a good point to tally the total number of parr and smolt progeny included for reference
+counts_by_juv_lifestage <- par_assign_juv_type %>%
+  group_by(., SampleYear, Juv_LifeStage) %>%
+  count() %>%
+  pivot_wider(names_from = Juv_LifeStage, values_from = n) %>%
+  filter(., SampleYear <= 2018)
+
+#let's combine this to the counts of potential adult progeny to produce one table of potential progeny
+counts_by_juv_lifestage$SampleYear <- as.character(counts_by_juv_lifestage$SampleYear)
+potential_progeny_counts <- full_join(counts_by_juv_lifestage, adult_counts)
+
+write_csv(potential_progeny_counts, "counts_individ_considered_as_progeny.csv")
 
 #now just want the CRITFC_ID column, Parent1, Parent2, Juv_LifeStage column
 Pa_juv_type <- par_assign_juv_type %>%
@@ -937,6 +960,108 @@ glm_input_with_grand_offs <- left_join(glm_input, grand_offspring_combined, by =
 
 #write to csv and check for accuracy
 write_csv(glm_input_with_grand_offs, "GLM Files/LKG_Adults_and_Juvenile_assignments_with_GrandOffspring_Final.csv")
+
+
+```
+
+UPDATE: 7/28/2022
+After first round of reviewers, both reviewers expressed confusion over how spawners could seemingly be more successful at producing grand-progeny as opposed to progeny. This was an artefact of how we filtered the data to find grand-progeny (i.e., only considering those fish that produced at least one F1 progeny that was not used as broodstock). This was an attempt to "make all things equal" since we were tracing through generations to find grand-progeny -> the only way we could find grand-progeny was if we had sampled and genotyped the progeny of spawner. This conservative approach might be more necessary in a system with poor weir efficiency, but after thinking on this more and knowing that the LKG weir is really quite efficient, we realized this is likely totally fair to include fish that produced 0 F1 progeny, because they likely truly didn't produce any progeny and therefore likely did not produced any grand-progeny. 
+
+So rather than go back through the code above, I'm going to modify the existing LKG_Adults_and_Juvenile_assignments_with_GrandOffspring_Final.csv file to change all those individuals who have zero adult offspring and NA grand offspring to 0 grand-offspring. There are some individuals who were assigned >=1 offspring, but which have NA in the grand-offspring column...I'm going to keep those as NA because that indicates that those offspring were used as broodstock and we therefore didn't look for their offspring in our analysis (only interested in stream spawners).
+
+```{r}
+library(tidyverse)
+
+glm_input <- read_csv("GLM Files/LKG_Adults_and_Juvenile_assignments_with_GrandOffspring_Final.csv")
+
+#we only want to make these changes to the 2008-2012 adults that could be reviewed as grandparents 
+glm_input_2008_2012 <- glm_input %>%
+  filter(., year >= 2008 & year <=2012)
+
+
+glm_input_2013_2016 <- glm_input %>%
+  filter(., year >=2013)
+
+
+#ok now perform transformations on 2008-2012 data
+glm_input_2008_2012_trans <- glm_input_2008_2012 %>%
+  mutate(., Grand_Offs_new = ifelse(is.na(Total_GrandOffs) & total_adult_offs <1, "0", Total_GrandOffs))
+
+
+#then just want to make the total juv grand-offs and total adult grand-offs columns also 0 if the total grand_offs column is now 0 
+glm_input_2008_2012_trans$Grand_Offs_new <- as.double(glm_input_2008_2012_trans$Grand_Offs_new)
+
+glm_input_2008_2012_trans_1 <- glm_input_2008_2012_trans %>%
+  mutate(., Total_Adult_Grand_Offs_new = ifelse(Grand_Offs_new == 0, 0, Total_Adult_Grand_Offs))
+
+glm_input_2008_2012_trans_2 <- glm_input_2008_2012_trans_1 %>%
+  mutate(., Total_Juv_Grand_Offs_new = ifelse(Grand_Offs_new == 0, 0, Total_Juv_Grand_Offs))
+
+#remove the old grand-offspring columns and rename new ones
+glm_input_2008_2012_clean <- glm_input_2008_2012_trans_2 %>%
+  select(., -Total_Adult_Grand_Offs, -Total_Juv_Grand_Offs, -Total_GrandOffs) %>%
+  rename(., Total_GrandOffs = Grand_Offs_new, Total_Adult_Grand_Offs = Total_Adult_Grand_Offs_new, Total_Juv_Grand_Offs = Total_Juv_Grand_Offs_new) %>%
+  relocate(., Total_Adult_Grand_Offs, .after = Total_Adult_And_Juv_Offs) %>%
+  relocate(., Total_Juv_Grand_Offs, .before = Total_GrandOffs)
+
+#now combine back to the 2013-2016 individuals 
+glm_input_clean_all <- bind_rows(glm_input_2008_2012_clean, glm_input_2013_2016)
+
+
+
+#before I write this to a csv, I want to compare to the original glm_input and make sure only the relevant totals were changed
+#R cannot consider NA as values though, so I need to change all NAs to a dummy value
+#choose 1000 because no way any one individual produced 1000 progeny
+glm_input_test <- glm_input %>%
+  replace_na(list(Total_Adult_Grand_Offs = 1000, Total_Juv_Grand_Offs = 1000, Total_GrandOffs = 1000))
+
+glm_input_clean_all_test <- glm_input_clean_all %>%
+  replace_na(list(Total_Adult_Grand_Offs = 1000, Total_Juv_Grand_Offs = 1000, Total_GrandOffs = 1000))
+
+compare <- left_join(glm_input_test, glm_input_clean_all_test, by = "id")
+#check for changes in each progeny column
+total_juv <- compare %>%
+  filter(., total_juvenile_offspring.x != total_juvenile_offspring.y) #0 so all good
+
+parr <- compare %>%
+  filter(., parr.x != parr.y) #0 so all good
+
+smolt <- compare %>%
+  filter(., smolt.x != smolt.y) #0 so all good
+
+total_adult <- compare %>%
+  filter(., total_adult_offs.x != total_adult_offs.y) #0 so all good
+
+age_3_adult <- compare %>%
+  filter(., `age-3 offspring.x` != `age-3 offspring.y`) #0 so all good
+
+age_4_adult <- compare %>%
+  filter(., `age-4 offspring.x` != `age-4 offspring.y`) #0 so all good
+
+age_5_adult <- compare %>%
+  filter(., `age-5 offspring.x` != `age-5 offspring.y`) #0 so all good
+
+total_adult_juv <- compare %>%
+  filter(., Total_Adult_And_Juv_Offs.x != Total_Adult_And_Juv_Offs.y) #0 so all good
+
+total_adult_grand <- compare %>%
+  filter(., Total_Adult_Grand_Offs.x != Total_Adult_Grand_Offs.y) #1343
+
+total_juv_grand <- compare %>%
+  filter(., Total_Juv_Grand_Offs.x != Total_Juv_Grand_Offs.y) #1343
+
+total_grand <- compare %>%
+  filter(., Total_GrandOffs.x != Total_GrandOffs.y) #1343
+
+#all grand offspring columsn have the same number of individuals, so let's focus on the total_grand
+total_grand_1 <- total_grand %>%
+  relocate(., Total_Adult_Grand_Offs.y, .after = Total_Adult_Grand_Offs.x) %>%
+  relocate(., Total_Juv_Grand_Offs.y, .after = Total_Juv_Grand_Offs.x) %>%
+  relocate(., Total_GrandOffs.y, .after = Total_GrandOffs.x)
+
+#all are adults from 2008-2012 who had zero adult offspring assigned, and so the grand-offspring columsn went from NA (i.e., 1000) to 0. So all checks out. 
+
+write_csv(glm_input_clean_all, "GLM Files/LKG_Adults_and_Juvenile_assignments_with_GrandOffspring_AdjustedGrandOffs.csv")
 
 
 ```
